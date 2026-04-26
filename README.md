@@ -289,6 +289,114 @@ ollama list
 
 ---
 
+## Web Interface
+
+Проєкт тепер має web-інтерфейс у стилі ChatGPT:
+
+- `server/` — Node.js gateway (`Express` + `WebSocket`)
+- `frontend/` — React + Vite UI
+- `ari_service.py` — headless Python bridge між Node і ARI
+
+### Як це працює
+
+```text
+[ Browser UI ]
+       ↓
+[ Node.js server ]
+       ↓
+[ ari_service.py ]
+       ↓
+[ Ollama ]
+```
+
+Node-сервер:
+
+- тягне список моделей з `http://127.0.0.1:11434/api/tags`
+- запускає Python ARI через локальний `.venv`
+- перезапускає ARI-процес при зміні моделі
+- транслює події ARI в UI через WebSocket
+
+### Встановлення web-частини
+
+```bash
+cd server
+npm install
+```
+
+```bash
+cd frontend
+npm install
+```
+
+### Запуск backend
+
+```bash
+cd server
+npm start
+```
+
+Node backend буде доступний на:
+
+```text
+http://localhost:3000
+```
+
+### Запуск frontend у dev-режимі
+
+```bash
+cd frontend
+npm run dev
+```
+
+Dev UI буде доступний на:
+
+```text
+http://localhost:5173
+```
+
+### Production build UI
+
+```bash
+cd frontend
+npm run build
+```
+
+Після цього `server` може віддавати зібраний `frontend/dist` напряму на `http://localhost:3000`.
+
+### Можливості UI
+
+- список доступних моделей з Ollama
+- перемикання моделей через restart ARI-процесу
+- основний чат у стилі ChatGPT Pro
+- локальна історія чатів у браузері
+- анімований стрім відповіді в чаті
+- окрема status-панель для `goal`, `belief`, `tick`, `model`
+- окрема `Cognition feed` панель для goal / voices / beliefs / lifecycle подій
+
+### Windows launchers
+
+Для web-частини є окремі `.bat`-файли:
+
+```bat
+run_server.bat
+run_frontend.bat
+```
+
+- `run_server.bat` стартує Node backend на `http://localhost:3000`
+- `run_frontend.bat` стартує Vite dev server на `http://localhost:5173`
+
+### API
+
+| Endpoint | Метод | Опис |
+|---|---|---|
+| `/api/models` | `GET` | Список моделей Ollama + поточна модель |
+| `/api/status` | `GET` | Стан ARI-процесу |
+| `/api/model` | `POST` | Перемкнути модель і перезапустити ARI |
+| `/api/message` | `POST` | Надіслати повідомлення в ARI |
+| `/ws` | `WS` | Стрім подій ARI в реальному часі |
+
+---
+
 ## Запуск
 
 ```bash

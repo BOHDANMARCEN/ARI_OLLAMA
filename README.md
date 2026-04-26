@@ -302,6 +302,13 @@ python main.py
 run_ari.bat
 ```
 
+Окремі ярлики під конкретні моделі:
+
+```bat
+run_ari_qwen4b.bat
+run_ari_llama3.bat
+```
+
 `run_ari.bat` запускає проєкт через локальний `.venv` і, якщо змінні не задані, використовує:
 
 ```bat

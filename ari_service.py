@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 from anchors import format_anchors, get_anchors
-from agents import derive_goal, extract_belief, run_all_voices, run_mediator
+from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator
 from config import CONSOLIDATION_INTERVAL, GOAL_UPDATE_INTERVAL, MEMORY_RESULTS, MODEL, TICK_SECONDS
 from interface import ARIInterface
 from memory import Memory
@@ -47,9 +47,10 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
         msg_type = message.get("type")
         if msg_type == "user_message":
             text = (message.get("text") or "").strip()
+            session_id = message.get("session_id")
             if text:
-                await interface.send(text, kind="user_message", weight=2.0)
-                emit("message_received", text=text)
+                await interface.send(text, kind="user_message", weight=2.0, session_id=session_id)
+                emit("message_received", text=text, session_id=session_id)
         elif msg_type == "shutdown":
             shutdown_event.set()
             return
@@ -72,6 +73,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
 
         external_events = interface.drain_events()
         has_user_input = bool(external_events)
+        response_session_id = external_events[0].session_id if external_events else None
 
         for event in external_events:
             mem.store(f"[{event.kind.upper()}]: {event.payload}", kind="external", weight=event.weight)
@@ -98,14 +100,24 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
         for name, resp in voices.items():
             emit("voice", tick=tick, name=name, text=resp)
 
-        synthesis = await run_mediator(voices, self_model.to_context())
+        if has_user_input and response_session_id:
+            emit("response_start", tick=tick, session_id=response_session_id)
+
+            async def on_token(token: str) -> None:
+                emit("response_token", tick=tick, session_id=response_session_id, token=token)
+
+            synthesis = await stream_mediator(voices, self_model.to_context(), on_token)
+            emit("response_end", tick=tick, session_id=response_session_id)
+        else:
+            synthesis = await run_mediator(voices, self_model.to_context())
+
         emit("synthesis", tick=tick, text=synthesis)
 
         voices_dump = "\n".join(f"[{name}]: {resp}" for name, resp in voices.items())
         mem.store(voices_dump, kind="tick_voices", weight=1.0)
         mem.store(synthesis, kind="synthesis", weight=1.5)
 
-        self_model.update_state(synthesis)
+        self_model.update_state(synthesis, voices=voices, had_user_input=has_user_input)
 
         if tick % CONSOLIDATION_INTERVAL == 0:
             deep_memories = mem.recall("important patterns beliefs", n=10)
@@ -115,9 +127,24 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
             mem.store(belief, kind="belief", weight=2.0)
             emit("belief", tick=tick, text=belief)
 
+        emit(
+            "brain_snapshot",
+            tick=tick,
+            snapshot=self_model.snapshot(),
+            voices=voices,
+        )
+        emit(
+            "memory_snapshot",
+            tick=tick,
+            query=query,
+            total=mem.count(),
+            recalled=memories,
+            recent=mem.recent(12),
+        )
+
         if has_user_input:
             await interface.push_response(synthesis)
-            emit("response", tick=tick, text=synthesis)
+            emit("response", tick=tick, text=synthesis, session_id=response_session_id)
 
         elapsed = time.time() - tick_start
         sleep_time = max(0.0, TICK_SECONDS - elapsed)

@@ -96,6 +96,27 @@ class Memory:
     def count(self) -> int:
         return self.col.count()
 
+    def recent(self, n: int = 12) -> list[dict]:
+        total = self.col.count()
+        if total == 0:
+            return []
+
+        res = self.col.get(include=["documents", "metadatas"])
+        items = []
+        for index, doc_id in enumerate(res["ids"]):
+            meta = res["metadatas"][index]
+            items.append({
+                "id": doc_id,
+                "text": res["documents"][index],
+                "kind": meta["kind"],
+                "weight": meta["weight"],
+                "activations": meta["activations"],
+                "created": meta["created"],
+            })
+
+        items.sort(key=lambda item: item["created"], reverse=True)
+        return items[:n]
+
     def format_for_context(self, memories: list[dict], max_chars: int = 800) -> str:
         """Форматує спогади в рядок для LLM-контексту."""
         lines = []

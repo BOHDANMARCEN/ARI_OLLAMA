@@ -368,9 +368,10 @@ npm run build
 - список доступних моделей з Ollama
 - перемикання моделей через restart ARI-процесу
 - основний чат у стилі ChatGPT Pro
-- локальна історія чатів у браузері
-- анімований стрім відповіді в чаті
-- окрема status-панель для `goal`, `belief`, `tick`, `model`
+- справжній token streaming з Python через Node WebSocket
+- історія чатів зберігається на backend у `server/data/chat-history.json`
+- окрема status-панель для `goal`, `beliefs`, `tick`, `model`, `state vector`
+- live memory viewer для `recalled` і `recent` memory entries
 - окрема `Cognition feed` панель для goal / voices / beliefs / lifecycle подій
 
 ### Windows launchers
@@ -391,6 +392,10 @@ run_frontend.bat
 |---|---|---|
 | `/api/models` | `GET` | Список моделей Ollama + поточна модель |
 | `/api/status` | `GET` | Стан ARI-процесу |
+| `/api/history` | `GET` | Вся історія чатів з backend |
+| `/api/history/sessions` | `POST` | Створити новий чат |
+| `/api/history/sessions/:id` | `DELETE` | Видалити чат |
+| `/api/dashboard` | `GET` | Поточний brain + memory snapshot |
 | `/api/model` | `POST` | Перемкнути модель і перезапустити ARI |
 | `/api/message` | `POST` | Надіслати повідомлення в ARI |
 | `/ws` | `WS` | Стрім подій ARI в реальному часі |

@@ -14,6 +14,7 @@ class Event:
     """Зовнішня подія для ARI."""
     kind: str          # "user_message" | "file" | "webhook" | "system"
     payload: str
+    session_id: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     weight: float = 2.0  # зовнішні події важливіші за внутрішні думки
 
@@ -31,13 +32,25 @@ class ARIInterface:
 
     # ── зовнішній → ARI ────────────────────────
 
-    async def send(self, text: str, kind: str = "user_message", weight: float = 2.0):
-        event = Event(kind=kind, payload=text, weight=weight)
+    async def send(
+        self,
+        text: str,
+        kind: str = "user_message",
+        weight: float = 2.0,
+        session_id: Optional[str] = None,
+    ):
+        event = Event(kind=kind, payload=text, weight=weight, session_id=session_id)
         await self._in_queue.put(event)
 
-    def send_sync(self, text: str, kind: str = "user_message", weight: float = 2.0):
+    def send_sync(
+        self,
+        text: str,
+        kind: str = "user_message",
+        weight: float = 2.0,
+        session_id: Optional[str] = None,
+    ):
         """Синхронна версія для CLI."""
-        event = Event(kind=kind, payload=text, weight=weight)
+        event = Event(kind=kind, payload=text, weight=weight, session_id=session_id)
         self._in_queue.put_nowait(event)
 
     # ── ARI читає події ─────────────────────────

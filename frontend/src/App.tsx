@@ -18,6 +18,7 @@ type ChatMessage = {
   role: "user" | "assistant" | "system";
   title: string;
   text: string;
+  createdAt?: string;
 };
 
 type ChatSession = {
@@ -34,6 +35,35 @@ type ActivityItem = {
   detail: string;
 };
 
+type BrainSnapshot = {
+  tick: number;
+  snapshot: {
+    state: string;
+    goal: string;
+    beliefs: string[];
+    tick: number;
+    uptime: number;
+    state_vector: Record<string, number>;
+  };
+  voices: Record<string, string>;
+};
+
+type MemoryItem = {
+  id: string;
+  text: string;
+  kind: string;
+  weight: number;
+  activations?: number;
+};
+
+type MemorySnapshot = {
+  tick: number;
+  query: string;
+  total: number;
+  recalled: MemoryItem[];
+  recent: MemoryItem[];
+};
+
 const initialStatus: BackendStatus = {
   type: "status_snapshot",
   model: "qwen3.5:9b",
@@ -42,35 +72,35 @@ const initialStatus: BackendStatus = {
   lastTick: 0,
 };
 
-const STORAGE_KEY = "ari-ui-sessions";
-
 function formatBytes(size?: number) {
   if (!size) {
     return "cloud";
   }
 
-  const gb = size / (1024 ** 3);
+  const gb = size / 1024 ** 3;
   return `${gb.toFixed(1)} GB`;
+}
+
+function sortSessions(sessions: ChatSession[]) {
+  return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export default function App() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState("");
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState("qwen3.5:9b");
   const [status, setStatus] = useState<BackendStatus>(initialStatus);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [brain, setBrain] = useState<BrainSnapshot | null>(null);
+  const [memory, setMemory] = useState<MemorySnapshot | null>(null);
   const [input, setInput] = useState("");
   const [switchingModel, setSwitchingModel] = useState(false);
   const [loadingModels, setLoadingModels] = useState(true);
   const [composerDisabled, setComposerDisabled] = useState(false);
-  const [currentGoal, setCurrentGoal] = useState("Awaiting first synthesis");
-  const [latestBelief, setLatestBelief] = useState("No beliefs consolidated yet");
-  const [voiceMap, setVoiceMap] = useState<Record<string, string>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const streamTimersRef = useRef<number[]>([]);
 
   const currentSession = useMemo(
     () => sessions.find((session) => session.id === currentSessionId) ?? null,
@@ -78,6 +108,8 @@ export default function App() {
   );
 
   const messages = currentSession?.messages ?? [];
+  const sortedSessions = useMemo(() => sortSessions(sessions), [sessions]);
+  const voiceCards = useMemo(() => Object.entries(brain?.voices ?? {}), [brain]);
 
   const connectionLabel = useMemo(() => {
     if (switchingModel) {
@@ -93,44 +125,13 @@ export default function App() {
   }, [status.state, switchingModel]);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as ChatSession[];
-        if (parsed.length > 0) {
-          setSessions(parsed);
-          setCurrentSessionId(parsed[0].id);
-          return;
-        }
-      }
-    } catch {
-      // ignore corrupted local history
-    }
-
-    const starter = createSession();
-    setSessions([starter]);
-    setCurrentSessionId(starter.id);
-  }, []);
-
-  useEffect(() => {
-    if (sessions.length > 0) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-    }
-  }, [sessions]);
-
-  useEffect(() => {
-    void loadModels();
-    void loadStatus();
+    void bootstrap();
   }, []);
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
     wsRef.current = socket;
-
-    socket.onopen = () => {
-      setStatus((prev) => ({ ...prev, state: prev.state === "connecting" ? "starting" : prev.state }));
-    };
 
     socket.onmessage = (event) => {
       const payload = JSON.parse(event.data);
@@ -141,60 +142,15 @@ export default function App() {
       setStatus((prev) => ({ ...prev, state: "stopped" }));
     };
 
-    return () => {
-      socket.close();
-    };
+    return () => socket.close();
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    return () => {
-      for (const timer of streamTimersRef.current) {
-        window.clearTimeout(timer);
-      }
-      streamTimersRef.current = [];
-    };
-  }, []);
-
-  function createSession(): ChatSession {
-    const now = new Date().toISOString();
-    return {
-      id: crypto.randomUUID(),
-      title: "New ARI chat",
-      createdAt: now,
-      updatedAt: now,
-      messages: [],
-    };
-  }
-
-  function patchCurrentSession(updater: (session: ChatSession) => ChatSession) {
-    setSessions((prev) => prev.map((session) => (
-      session.id === currentSessionId ? updater(session) : session
-    )));
-  }
-
-  function startNewChat() {
-    const session = createSession();
-    setSessions((prev) => [session, ...prev]);
-    setCurrentSessionId(session.id);
-  }
-
-  function removeSession(sessionId: string) {
-    setSessions((prev) => {
-      const next = prev.filter((session) => session.id !== sessionId);
-      if (next.length === 0) {
-        const fallback = createSession();
-        setCurrentSessionId(fallback.id);
-        return [fallback];
-      }
-      if (sessionId === currentSessionId) {
-        setCurrentSessionId(next[0].id);
-      }
-      return next;
-    });
+  async function bootstrap() {
+    await Promise.all([loadModels(), loadStatus(), loadHistory(), loadDashboard()]);
   }
 
   async function loadModels() {
@@ -210,56 +166,50 @@ export default function App() {
     const response = await fetch("/api/status");
     const data = await response.json();
     setStatus(data);
-    setSelectedModel(data.model || "qwen3.5:9b");
+    setComposerDisabled(data.state !== "running");
+  }
+
+  async function loadHistory() {
+    const response = await fetch("/api/history");
+    const data = await response.json();
+    const nextSessions = data.sessions || [];
+    setSessions(nextSessions);
+    setCurrentSessionId((prev) => prev || nextSessions[0]?.id || "");
+  }
+
+  async function loadDashboard() {
+    const response = await fetch("/api/dashboard");
+    const data = await response.json();
+    if (data.status) {
+      setStatus(data.status);
+    }
+    if (data.brain) {
+      setBrain(data.brain);
+    }
+    if (data.memory) {
+      setMemory(data.memory);
+    }
   }
 
   function pushActivity(label: string, detail: string) {
-    setActivity((prev) => [{ id: crypto.randomUUID(), label, detail }, ...prev].slice(0, 14));
+    setActivity((prev) => [{ id: crypto.randomUUID(), label, detail }, ...prev].slice(0, 20));
   }
 
-  function streamAssistantMessage(text: string, tick: number | string | undefined) {
-    const messageId = crypto.randomUUID();
-
-    patchCurrentSession((session) => ({
-      ...session,
-      updatedAt: new Date().toISOString(),
-      messages: [
-        ...session.messages,
-        {
-          id: messageId,
-          role: "assistant",
-          title: `ARI · Tick ${tick ?? "?"}`,
-          text: "",
-        },
-      ],
-    }));
-
-    const chunks = text.match(/.{1,8}/g) ?? [text];
-    const typeChunk = (index: number) => {
-      patchCurrentSession((session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: session.messages.map((message) => (
-          message.id === messageId
-            ? { ...message, text: chunks.slice(0, index + 1).join("") }
-            : message
-        )),
-      }));
-
-      if (index < chunks.length - 1) {
-        const timer = window.setTimeout(() => typeChunk(index + 1), 18);
-        streamTimersRef.current.push(timer);
+  function patchSessionMessage(sessionId: string, messageId: string, updater: (message: ChatMessage) => ChatMessage) {
+    setSessions((prev) => prev.map((session) => {
+      if (session.id !== sessionId) {
+        return session;
       }
-    };
-
-    typeChunk(0);
+      return {
+        ...session,
+        messages: session.messages.map((message) => (
+          message.id === messageId ? updater(message) : message
+        )),
+      };
+    }));
   }
 
-  function buildSessionTitle(text: string) {
-    return text.trim().slice(0, 42) || "New ARI chat";
-  }
-
-  function handleSocketEvent(payload: BackendStatus & Record<string, unknown>) {
+  function handleSocketEvent(payload: Record<string, unknown>) {
     switch (payload.type) {
       case "status_snapshot":
         setStatus(payload as BackendStatus);
@@ -267,31 +217,57 @@ export default function App() {
         setComposerDisabled(payload.state !== "running");
         pushActivity("System", `${payload.state} on ${payload.model}`);
         break;
-      case "status":
-        pushActivity("Lifecycle", `${payload.phase} (${String(payload.model)})`);
+      case "history_snapshot": {
+        const nextSessions = (payload.sessions as ChatSession[]) || [];
+        setSessions(nextSessions);
+        setCurrentSessionId((prev) => prev || nextSessions[0]?.id || "");
         break;
-      case "tick_start":
-        setStatus((prev) => ({ ...prev, lastTick: Number(payload.tick || prev.lastTick) }));
-        pushActivity("Tick", `Tick #${payload.tick}`);
+      }
+      case "dashboard_snapshot":
+        if (payload.status) {
+          setStatus(payload.status as BackendStatus);
+        }
+        if (payload.brain) {
+          setBrain(payload.brain as BrainSnapshot);
+        }
+        if (payload.memory) {
+          setMemory(payload.memory as MemorySnapshot);
+        }
         break;
-      case "goal_updated":
-        setCurrentGoal(String(payload.goal || ""));
-        pushActivity("Goal", String(payload.goal || ""));
+      case "brain_snapshot":
+        setBrain(payload as unknown as BrainSnapshot);
+        pushActivity("Goal", String((payload as BrainSnapshot).snapshot.goal || ""));
+        break;
+      case "memory_snapshot":
+        setMemory(payload as unknown as MemorySnapshot);
         break;
       case "voice":
-        setVoiceMap((prev) => ({ ...prev, [String(payload.name || "Voice")]: String(payload.text || "") }));
         pushActivity(String(payload.name || "Voice"), String(payload.text || ""));
         break;
       case "belief":
-        setLatestBelief(String(payload.text || ""));
         pushActivity("Belief", String(payload.text || ""));
         break;
-      case "response":
-        streamAssistantMessage(
-          String(payload.text || ""),
-          typeof payload.tick === "number" || typeof payload.tick === "string" ? payload.tick : undefined,
+      case "response_start": {
+        const sessionsPayload = payload.sessions as ChatSession[] | undefined;
+        if (sessionsPayload) {
+          setSessions(sessionsPayload);
+        }
+        break;
+      }
+      case "response_token":
+        patchSessionMessage(
+          String(payload.session_id || ""),
+          String(payload.messageId || ""),
+          (message) => ({ ...message, text: message.text + String(payload.token || "") }),
         );
         break;
+      case "response_end": {
+        const sessionsPayload = payload.sessions as ChatSession[] | undefined;
+        if (sessionsPayload) {
+          setSessions(sessionsPayload);
+        }
+        break;
+      }
       case "error":
         setStatus((prev) => ({ ...prev, lastError: String(payload.message || "Unknown error") }));
         pushActivity("Error", String(payload.message || "Unknown error"));
@@ -301,6 +277,22 @@ export default function App() {
         break;
       default:
         break;
+    }
+  }
+
+  async function createSession() {
+    const response = await fetch("/api/history/sessions", { method: "POST" });
+    const data = await response.json();
+    setSessions(data.sessions || []);
+    setCurrentSessionId(data.session.id);
+  }
+
+  async function deleteSession(sessionId: string) {
+    const response = await fetch(`/api/history/sessions/${sessionId}`, { method: "DELETE" });
+    const data = await response.json();
+    setSessions(data.sessions || []);
+    if (sessionId === currentSessionId) {
+      setCurrentSessionId(data.sessions?.[0]?.id || "");
     }
   }
 
@@ -329,37 +321,15 @@ export default function App() {
 
   function sendMessage() {
     const text = input.trim();
-    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !currentSessionId) {
+    if (!text || !currentSessionId || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    wsRef.current.send(JSON.stringify({ type: "user_message", text }));
-    patchCurrentSession((session) => ({
-      ...session,
-      title: session.messages.length === 0 ? buildSessionTitle(text) : session.title,
-      updatedAt: new Date().toISOString(),
-      messages: [
-        ...session.messages,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          title: "You",
-          text,
-        },
-      ],
-    }));
+    wsRef.current.send(JSON.stringify({ type: "user_message", text, sessionId: currentSessionId }));
     setInput("");
   }
 
-  const sortedSessions = useMemo(
-    () => [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [sessions],
-  );
-
-  const voiceCards = useMemo(
-    () => Object.entries(voiceMap).map(([name, text]) => ({ name, text })),
-    [voiceMap],
-  );
+  const stateVectorEntries = Object.entries(brain?.snapshot.state_vector || {});
 
   return (
     <div className="shell">
@@ -372,7 +342,7 @@ export default function App() {
           </div>
         </div>
 
-        <button className="new-chat-button" onClick={startNewChat} type="button">
+        <button className="new-chat-button" onClick={createSession} type="button">
           New chat
         </button>
 
@@ -388,12 +358,7 @@ export default function App() {
                   <strong>{session.title}</strong>
                   <small>{new Date(session.updatedAt).toLocaleString()}</small>
                 </button>
-                <button
-                  className="history-remove"
-                  onClick={() => removeSession(session.id)}
-                  type="button"
-                  aria-label="Delete chat"
-                >
+                <button className="history-remove" onClick={() => deleteSession(session.id)} type="button">
                   x
                 </button>
               </div>
@@ -477,7 +442,7 @@ export default function App() {
           {messages.length === 0 ? (
             <div className="empty-state">
               <h3>ARI is ready.</h3>
-              <p>Start a new conversation or continue one from history. ARI will inject your message into the current cognition loop.</p>
+              <p>Messages stream in real time from Python through Node. Select a chat from history or start a new one.</p>
             </div>
           ) : null}
 
@@ -520,21 +485,32 @@ export default function App() {
           </div>
           <dl className="stats-grid wide">
             <div>
-              <dt>Model</dt>
-              <dd>{status.model}</dd>
+              <dt>Current goal</dt>
+              <dd>{brain?.snapshot.goal || "Awaiting first tick"}</dd>
             </div>
             <div>
-              <dt>Last tick</dt>
-              <dd>{status.lastTick}</dd>
+              <dt>Current state</dt>
+              <dd>{brain?.snapshot.state || "No synthesis yet"}</dd>
             </div>
           </dl>
-          <div className="status-block">
-            <p className="activity-label">Current goal</p>
-            <p className="activity-detail">{currentGoal}</p>
+          <div className="vector-list">
+            {stateVectorEntries.map(([name, value]) => (
+              <div key={name} className="vector-row">
+                <div className="vector-meta">
+                  <span>{name}</span>
+                  <span>{Math.round(value * 100)}%</span>
+                </div>
+                <div className="vector-bar"><span style={{ width: `${Math.round(value * 100)}%` }} /></div>
+              </div>
+            ))}
           </div>
           <div className="status-block">
-            <p className="activity-label">Latest belief</p>
-            <p className="activity-detail">{latestBelief}</p>
+            <p className="activity-label">Beliefs</p>
+            <div className="belief-list">
+              {(brain?.snapshot.beliefs || []).map((belief) => (
+                <p key={belief} className="activity-detail">{belief}</p>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -544,12 +520,47 @@ export default function App() {
             <span>{voiceCards.length}</span>
           </div>
           <div className="activity-list compact">
-            {voiceCards.map((voice) => (
-              <article key={voice.name} className="activity-card">
-                <p className="activity-label">{voice.name}</p>
-                <p className="activity-detail">{voice.text}</p>
+            {voiceCards.map(([name, text]) => (
+              <article key={name} className="activity-card">
+                <p className="activity-label">{name}</p>
+                <p className="activity-detail">{text}</p>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="panel memory-panel">
+          <div className="panel-header">
+            <span>Memory viewer</span>
+            <span>{memory?.total || 0}</span>
+          </div>
+          <div className="status-block">
+            <p className="activity-label">Active query</p>
+            <p className="activity-detail">{memory?.query || "No query yet"}</p>
+          </div>
+          <div className="memory-columns">
+            <div>
+              <p className="activity-label">Recalled</p>
+              <div className="memory-list">
+                {(memory?.recalled || []).map((item) => (
+                  <article key={item.id} className="activity-card">
+                    <p className="activity-label">{item.kind} · w={item.weight.toFixed(2)}</p>
+                    <p className="activity-detail">{item.text}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="activity-label">Recent</p>
+              <div className="memory-list">
+                {(memory?.recent || []).map((item) => (
+                  <article key={item.id} className="activity-card">
+                    <p className="activity-label">{item.kind} · w={item.weight.toFixed(2)}</p>
+                    <p className="activity-detail">{item.text}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

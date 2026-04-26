@@ -89,6 +89,54 @@ async def _call_llm(system: str, user: str, max_tokens: int = TOKEN_BUDGET) -> s
         return f"[ERROR: {e}]"
 
 
+async def _stream_llm(
+    system: str,
+    user: str,
+    on_token,
+    max_tokens: int = TOKEN_BUDGET,
+) -> str:
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    sentinel = object()
+
+    def worker() -> None:
+        try:
+            stream = ollama.chat(
+                model=MODEL,
+                think=OLLAMA_THINK,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                options={"num_predict": max_tokens},
+                stream=True,
+            )
+            for chunk in stream:
+                token = chunk["message"]["content"]
+                if token:
+                    asyncio.run_coroutine_threadsafe(queue.put(token), loop).result()
+        except Exception as exc:
+            asyncio.run_coroutine_threadsafe(queue.put(exc), loop).result()
+        finally:
+            asyncio.run_coroutine_threadsafe(queue.put(sentinel), loop).result()
+
+    worker_future = loop.run_in_executor(None, worker)
+    tokens: list[str] = []
+
+    while True:
+        item = await queue.get()
+        if item is sentinel:
+            break
+        if isinstance(item, Exception):
+            await worker_future
+            raise item
+        tokens.append(item)
+        await on_token(item)
+
+    await worker_future
+    return "".join(tokens).strip()
+
+
 # ─────────────────────────────────────────────
 # ГОЛОСИ
 # ─────────────────────────────────────────────
@@ -118,6 +166,15 @@ async def run_mediator(voices: dict[str, str], self_context: str) -> str:
     )
     user_input = f"SELF MODEL:\n{self_context}\n\nVOICES:\n{combined}"
     return await _call_llm(MEDIATOR_PROMPT, user_input, max_tokens=350)
+
+
+async def stream_mediator(voices: dict[str, str], self_context: str, on_token) -> str:
+    """Стрімити mediator-відповідь токенами."""
+    combined = "\n\n".join(
+        f"[{name}]:\n{resp}" for name, resp in voices.items()
+    )
+    user_input = f"SELF MODEL:\n{self_context}\n\nVOICES:\n{combined}"
+    return await _stream_llm(MEDIATOR_PROMPT, user_input, on_token, max_tokens=350)
 
 
 # ─────────────────────────────────────────────

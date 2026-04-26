@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import BrainGraph from "./BrainGraph";
+
 type ModelInfo = {
   name: string;
   size?: number;
@@ -237,6 +239,8 @@ export default function App() {
       case "brain_snapshot":
         setBrain(payload as unknown as BrainSnapshot);
         pushActivity("Goal", String((payload as BrainSnapshot).snapshot.goal || ""));
+        break;
+      case "brain_graph":
         break;
       case "memory_snapshot":
         setMemory(payload as unknown as MemorySnapshot);
@@ -478,6 +482,8 @@ export default function App() {
       </main>
 
       <aside className="activity-column">
+        <BrainGraph />
+
         <section className="panel status-panel sticky-card">
           <div className="panel-header">
             <span>ARI state</span>

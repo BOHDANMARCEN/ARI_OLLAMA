@@ -33,6 +33,7 @@ let restartPromise = Promise.resolve();
 let history = { sessions: [] };
 let latestBrainSnapshot = null;
 let latestMemorySnapshot = null;
+let latestBrainGraph = null;
 const pendingAssistantMessages = new Map();
 
 function nowIso() {
@@ -145,6 +146,7 @@ function dashboardSnapshot() {
     status: snapshotEvent(),
     brain: latestBrainSnapshot,
     memory: latestMemorySnapshot,
+    brain_graph: latestBrainGraph,
   };
 }
 
@@ -166,6 +168,9 @@ function handleAriLine(line) {
     }
     if (event.type === "memory_snapshot") {
       latestMemorySnapshot = event;
+    }
+    if (event.type === "brain_graph") {
+      latestBrainGraph = event.graph;
     }
     handleServiceEvent(event).catch((error) => {
       broadcast({ type: "error", message: error.message });

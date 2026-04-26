@@ -70,6 +70,67 @@ class SelfModel:
             "state_vector": self.state_vector,
         }
 
+    def export_graph_state(self, voices: dict[str, str] | None = None) -> dict:
+        """Export brain state for force graph visualization."""
+        nodes = [
+            {"id": "Explorer", "group": "voice", "value": 15},
+            {"id": "Consolidator", "group": "voice", "value": 15},
+            {"id": "Critic", "group": "voice", "value": 15},
+            {"id": "Mediator", "group": "core", "value": 25},
+            {"id": "Self", "group": "core", "value": 30},
+        ]
+
+        links = [
+            {"source": "Explorer", "target": "Mediator"},
+            {"source": "Consolidator", "target": "Mediator"},
+            {"source": "Critic", "target": "Mediator"},
+            {"source": "Mediator", "target": "Self"},
+        ]
+
+        voice_texts = voices or {}
+        for name, text in voice_texts.items():
+            if text and len(text) > 10:
+                thought_id = f"Thought_{name}_{self.tick}"
+                nodes.append({
+                    "id": thought_id,
+                    "group": "thought",
+                    "value": 5,
+                    "label": name,
+                    "text": text[:80],
+                })
+                links.append({"source": name, "target": thought_id})
+
+        if self.goal:
+            nodes.append({
+                "id": "Goal",
+                "group": "goal",
+                "value": 20,
+                "text": self.goal[:60],
+            })
+            links.append({"source": "Self", "target": "Goal"})
+
+        for i, belief in enumerate(self.beliefs[-5:]):
+            belief_id = f"Belief_{i}"
+            nodes.append({
+                "id": belief_id,
+                "group": "belief",
+                "value": 8,
+                "text": belief[:60],
+            })
+            links.append({"source": "Self", "target": belief_id})
+
+        for key, val in self.state_vector.items():
+            metric_id = f"Metric_{key}"
+            nodes.append({
+                "id": metric_id,
+                "group": "metric",
+                "value": int(val * 10) + 5,
+                "text": f"{key}: {val:.2f}",
+            })
+            links.append({"source": "Self", "target": metric_id})
+
+        return {"nodes": nodes, "links": links}
+
     def _update_state_vector(
         self,
         synthesis: str,

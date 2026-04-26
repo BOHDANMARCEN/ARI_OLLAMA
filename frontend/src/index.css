@@ -526,3 +526,63 @@ textarea {
     align-self: stretch;
   }
 }
+
+/* Brain Graph */
+.brain-graph-panel {
+  padding: 16px;
+}
+
+.brain-graph-container {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0f172a;
+  margin-top: 12px;
+}
+
+.brain-graph-container.expanded {
+  width: 100%;
+}
+
+.graph-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.text-button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.text-button:hover {
+  background: rgba(59, 130, 246, 0.1);
+}

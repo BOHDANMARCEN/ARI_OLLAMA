@@ -129,8 +129,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+    const wsUrl = "ws://localhost:3000/ws";
+    const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 
     socket.onmessage = (event) => {

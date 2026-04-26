@@ -573,6 +573,13 @@ textarea {
   border-radius: 50%;
 }
 
+.legend-hint {
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-left: auto;
+  font-style: italic;
+}
+
 .text-button {
   background: none;
   border: none;
@@ -586,3 +593,39 @@ textarea {
 .text-button:hover {
   background: rgba(59, 130, 246, 0.1);
 }
+
+/* Brain Graph Resize */
+.brain-graph-container {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0f172a;
+  margin-top: 12px;
+  min-width: 260px;
+  min-height: 180px;
+  transition: width 0.15s ease, height 0.15s ease;
+  resize: both;
+  cursor: se-resize;
+}
+
+.brain-graph-container.expanded {
+  width: 100%;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  bottom: 4px;
+  right: 4px;
+  cursor: se-resize;
+  background: linear-gradient(135deg, transparent 50%, #3b82f6 50%);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+.resize-handle:hover {
+  opacity: 1;
+}
+
+.graph-empty {

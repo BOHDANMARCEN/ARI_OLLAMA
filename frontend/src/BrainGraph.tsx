@@ -30,11 +30,23 @@ const groupColors: Record<string, string> = {
   metric: "#ec4899",
 };
 
+const MIN_WIDTH = 260;
+const MIN_HEIGHT = 180;
+const DEFAULT_WIDTH = 280;
+const DEFAULT_HEIGHT = 200;
+const EXPANDED_WIDTH = 600;
+const EXPANDED_HEIGHT = 400;
+
 export default function BrainGraph() {
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [isExpanded, setIsExpanded] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  const [isResizing, setIsResizing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const graphRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:3000/ws");
@@ -77,6 +89,57 @@ export default function BrainGraph() {
     console.log("[BrainGraph] Node clicked:", node);
   }, []);
 
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).classList.contains("resize-handle")) {
+      setIsResizing(true);
+      resizeStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        width: dimensions.width,
+        height: dimensions.height,
+      };
+      e.preventDefault();
+    }
+    if ((e.target as HTMLElement).classList.contains("expand-handle")) {
+      setIsDragging(true);
+      e.preventDefault();
+    }
+  }, [dimensions]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent | MouseEvent) => {
+    if (isResizing) {
+      const deltaX = e.clientX - resizeStartRef.current.x;
+      const deltaY = e.clientY - resizeStartRef.current.y;
+      const newWidth = Math.max(MIN_WIDTH, resizeStartRef.current.width + deltaX);
+      const newHeight = Math.max(MIN_HEIGHT, resizeStartRef.current.height + deltaY);
+      setDimensions({ width: newWidth, height: newHeight });
+    }
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing || isDragging) {
+      window.addEventListener("mousemove", handleMouseMove as any);
+      window.addEventListener("mouseup", handleMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", handleMouseMove as any);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [isResizing, isDragging, handleMouseMove, handleMouseUp]);
+
+  const handleDoubleClick = useCallback(() => {
+    setIsExpanded((prev) => !prev);
+    setDimensions((prev) => ({
+      width: prev.width === DEFAULT_WIDTH ? EXPANDED_WIDTH : DEFAULT_WIDTH,
+      height: prev.height === DEFAULT_HEIGHT ? EXPANDED_HEIGHT : DEFAULT_HEIGHT,
+    }));
+  }, []);
+
   const nodeCanvasObject = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.label || node.id;
@@ -110,14 +173,28 @@ export default function BrainGraph() {
         <span>Brain Graph</span>
         <button
           className="text-button"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            setIsExpanded(!isExpanded);
+            setDimensions({
+              width: isExpanded ? DEFAULT_WIDTH : EXPANDED_WIDTH,
+              height: isExpanded ? DEFAULT_HEIGHT : EXPANDED_HEIGHT,
+            });
+          }}
           type="button"
         >
           {isExpanded ? "Collapse" : "Expand"}
         </button>
       </div>
 
-      <div className={`brain-graph-container ${isExpanded ? "expanded" : ""}`}>
+      <div
+        ref={containerRef}
+        className={`brain-graph-container ${isExpanded ? "expanded" : ""}`}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={handleDoubleClick}
+        style={{ width: dimensions.width, height: dimensions.height }}
+      >
+        <div className="resize-handle resize-se" />
+
         {graphData.nodes.length === 0 ? (
           <div className="graph-empty">
             <p>Waiting for brain data...</p>
@@ -137,8 +214,8 @@ export default function BrainGraph() {
             linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={() => "#60a5fa"}
             backgroundColor="#0f172a"
-            width={isExpanded ? 600 : 280}
-            height={isExpanded ? 400 : 200}
+            width={dimensions.width}
+            height={dimensions.height}
             cooldownTicks={100}
             onNodeClick={handleNodeClick}
             d3VelocityDecay={0.3}
@@ -154,6 +231,7 @@ export default function BrainGraph() {
             <span>{group}</span>
           </div>
         ))}
+        <span className="legend-hint">Double-click or drag corner to resize</span>
       </div>
     </section>
   );

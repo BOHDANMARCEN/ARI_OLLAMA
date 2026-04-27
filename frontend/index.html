@@ -423,6 +423,30 @@
     * { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
 
     .empty-state { text-align: center; padding: 20px; color: var(--text3); font-size: 10px; }
+
+    /* Crisis Overlay */
+    .crisis-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(184, 60, 42, 0.9);
+      border: 2px solid #ff4444;
+      border-radius: 8px;
+      padding: 16px 32px;
+      z-index: 100;
+      animation: pulse-crisis 1s ease-in-out infinite;
+    }
+    .crisis-text {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+    }
+    @keyframes pulse-crisis {
+      0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.02); }
+    }
   </style>
 </head>
 <body>
@@ -518,11 +542,43 @@
           <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mMood" style="width:50%;background:#ff6b6b"></div></div>
           <div class="metric-val" id="mMoodV">neutral</div>
         </div>
-        <div class="metric-row">
+<div class="metric-row">
           <div class="metric-name">energy</div>
           <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mEnergy" style="width:50%;background:#22c994"></div></div>
           <div class="metric-val" id="mEnergyV">50%</div>
         </div>
+        <!-- v9: New metrics -->
+        <div class="metric-row">
+          <div class="metric-name">defense</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mDefense" style="width:30%;background:#84cc46"></div></div>
+          <div class="metric-val" id="mDefenseV">open</div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-name">trust</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mTrust" style="width:80%;background:#3b82f6"></div></div>
+          <div class="metric-val" id="mTrustV">80%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- v9.1: Enhanced HUD -->
+    <div class="graph-overlay" style="top:44px;bottom:auto;padding:10px 20px;background:rgba(0,0,0,0.5);border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="display:flex;gap:20px;font-size:9px;color:var(--text3);flex-wrap:wrap;">
+        <div>❤️ <span id="hudPrefers" style="color:var(--text)">--</span></div>
+        <div>💬 <span id="hudStyle" style="color:var(--text)">--</span></div>
+        <div>💭 <span id="hudSpontaneous" style="color:var(--text)">--</span></div>
+        <div>⏳ <span id="hudContinuity" style="color:var(--text)">--</span></div>
+        <div>🎯 <span id="hudPriorities" style="color:var(--amber)">--</span></div>
+        <div>🛡️ <span id="hudDefense" style="color:var(--teal)">--</span></div>
+        <div>📖 <span id="hudNarrative" style="color:var(--purple)">--</span></div>
+        <div>🏗️ <span id="hudProjects" style="color:var(--blue)">--</span></div>
+      </div>
+    </div>
+
+    <!-- Crisis Overlay -->
+    <div id="crisisOverlay" class="crisis-overlay" style="display:none;">
+      <span class="crisis-text">⚠️ CRISIS MODE</span>
+    </div>
       </div>
     </div>
 
@@ -661,9 +717,21 @@ function handleEvent(evt) {
       break;
 
     case 'brain_graph':
-      // Update mood/preferences/style from graph meta
+      // v9.1: Update all metrics from graph meta
       if(evt.graph?.meta) {
         const m = evt.graph.meta;
+        
+        // Core metrics
+        if(m.coherence !== undefined) {
+          document.getElementById('mCoh').style.width = (m.coherence * 100) + '%';
+          document.getElementById('mCohV').textContent = Math.round(m.coherence * 100) + '%';
+        }
+        if(m.conflict !== undefined) {
+          document.getElementById('mConflict').style.width = (m.conflict * 100) + '%';
+          document.getElementById('mConflictV').textContent = Math.round(m.conflict * 100) + '%';
+        }
+        
+        // v8: Mood / Energy
         if(m.mood) {
           const mu = m.mood;
           document.getElementById('mMoodV').textContent = mu.valence > 0 ? '+' + mu.valence.toFixed(2) : mu.valence.toFixed(2);
@@ -671,26 +739,59 @@ function handleEvent(evt) {
           document.getElementById('mEnergyV').textContent = Math.round(mu.energy * 100) + '%';
           document.getElementById('mEnergy').style.width = (mu.energy * 100) + '%';
         }
+        
+        // v8: Preferences
         if(m.preferences) {
-          document.getElementById('hudPrefers').textContent = 
-            (m.preferences.likes_exploration > 0.6 ? 'Explore' : '') +
-            (m.preferences.likes_depth > 0.6 ? 'Depth' : '') +
-            (m.preferences.likes_stability > 0.6 ? 'Stable' : '') || 'Balanced';
+          const p = m.preferences;
+          let prefText = '';
+          if(p.likes_exploration > 0.6) prefText += 'Explore ';
+          if(p.likes_depth > 0.6) prefText += 'Depth ';
+          if(p.likes_stability > 0.6) prefText += 'Stable ';
+          document.getElementById('hudPrefers').textContent = prefText.trim() || 'Balanced';
         }
+        
+        // v8: Style
         if(m.style) {
           document.getElementById('hudStyle').textContent = m.style.analyticity > 0.6 ? 'Analytical' : 'Intuitive';
         }
+        
+        // v8: Spontaneous
+        if(m.narrative) {
+          document.getElementById('hudNarrative').textContent = m.narrative.summary?.substring(0, 25) || '--';
+        }
+        
         // v9: Continuity
         if(m.continuity) {
           document.getElementById('hudContinuity').textContent = m.continuity.cycles + ' cycles';
         }
+        
         // v9: Priorities
         if(m.priorities) {
           document.getElementById('hudPriorities').textContent = m.priorities.top || '--';
         }
-        // v9: Defense
+        
+        // v9: Defense + Trust
         if(m.defense) {
-          document.getElementById('hudDefense').textContent = m.defense.defense_level > 0.5 ? 'guarded' : 'open';
+          const d = m.defense;
+          document.getElementById('hudDefense').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
+          document.getElementById('mDefense').style.width = (d.defense_level * 100) + '%';
+          document.getElementById('mDefenseV').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
+          document.getElementById('mTrust').style.width = (d.trust * 100) + '%';
+          document.getElementById('mTrustV').textContent = Math.round(d.trust * 100) + '%';
+        }
+        
+        // v9: Long Projects
+        if(m.projects) {
+          const proj = m.projects.active?.[0];
+          document.getElementById('hudProjects').textContent = proj ? `${proj.name?.substring(0, 15)} (${proj.percent?.toFixed(0)}%)` : '--';
+        }
+        
+        // Crisis mode overlay
+        const crisisEl = document.getElementById('crisisOverlay');
+        if(m.crisis?.active && crisisEl) {
+          crisisEl.style.display = 'flex';
+        } else if(crisisEl) {
+          crisisEl.style.display = 'none';
         }
       }
       break;
@@ -710,8 +811,16 @@ function handleEvent(evt) {
     case 'response_end':
       break;
 
-    case 'inquiry':
+case 'inquiry':
       addActivity('Inquiry', evt.question, '?');
+      break;
+
+    case 'defense':
+      addActivity('Defense', 'level=' + evt.level, '🛡️');
+      break;
+
+    case 'voice':
+      addActivity('Voice', evt.text, evt.name);
       break;
 
     case 'spontaneous':

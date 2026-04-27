@@ -626,6 +626,16 @@ textarea {
   margin-left: auto;
 }
 
+.hud-value.identity {
+  color: #a78bfa;
+}
+
+.hud-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
 .text-button {
   background: none;
   border: none;

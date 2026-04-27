@@ -8,6 +8,13 @@ from config import MAX_BELIEFS
 
 
 @dataclass
+class Belief:
+    """Simple belief representation for export."""
+    text: str
+    strength: float = 1.0
+
+
+@dataclass
 class SelfModel:
     """
     Внутрішня модель себе.
@@ -25,6 +32,11 @@ class SelfModel:
     state: str = "initializing"
     goal: str = "stabilize internal state and begin observation"
     beliefs: list[str] = field(default_factory=list)
+    identity_vector: dict[str, float] = field(default_factory=lambda: {
+        "stability": 0.5,
+        "curiosity": 0.5,
+        "aggression": 0.3,
+    })
     state_vector: dict[str, float] = field(default_factory=lambda: {
         "stability": 0.55,
         "novelty": 0.55,
@@ -55,8 +67,34 @@ class SelfModel:
         """Додати переконання. Старі не видаляються — тільки витісняються."""
         self.beliefs.append(belief[:200])
         if len(self.beliefs) > MAX_BELIEFS:
-            # видаляємо найстаріші, але зберігаємо перші 3 (фундамент)
             self.beliefs = self.beliefs[:3] + self.beliefs[-(MAX_BELIEFS - 3):]
+        self._update_identity_vector()
+
+    def _update_identity_vector(self) -> None:
+        """Update identity vector based on beliefs."""
+        if not self.beliefs:
+            return
+        total = len(self.beliefs)
+        avg_len = sum(len(b) for b in self.beliefs) / total
+        reinforced = sum(1 for b in self.beliefs if len(b) > 30)
+        
+        stability = min(1.0, 0.3 + (reinforced / total) * 0.4)
+        curiosity = max(0.1, 0.8 - stability * 0.5)
+        aggression = abs(curiosity - stability) * 0.5
+        
+        self.identity_vector = {
+            "stability": round(stability, 3),
+            "curiosity": round(curiosity, 3),
+            "aggression": round(min(1.0, aggression), 3),
+        }
+
+    def update_identity_from_belief_system(self, belief_system) -> None:
+        """Update identity vector from external BeliefSystem."""
+        self.identity_vector = belief_system.get_identity_vector()
+        
+        for belief in belief_system.top(5):
+            if belief.text not in self.beliefs:
+                self.add_belief(belief.text)
 
     def snapshot(self) -> dict:
         uptime = int(time.time() - self.started_at)
@@ -79,9 +117,14 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
+
+        if belief_system:
+            belief_list = belief_system.get_all()
+        else:
+            belief_list = []
 
         explorer_text = voice_texts.get("Explorer", "")
         critic_text = voice_texts.get("Critic", "")
@@ -115,7 +158,16 @@ class SelfModel:
             {"source": "Critic", "target": "Mediator", "strength": 0.3 + critic_power * 0.7},
             {"source": "Consolidator", "target": "Mediator", "strength": 0.3 + consolidator_power * 0.7},
             {"source": "Mediator", "target": "Self", "strength": 0.8},
+            {"source": "Self", "target": "Identity", "strength": 0.7},
         ]
+
+        nodes.append({
+            "id": "Identity",
+            "group": "identity",
+            "value": 16,
+            "xBias": x_bias * 0.3,
+            "yBias": y_bias * 0.3,
+        })
 
         for name, text in voice_texts.items():
             if text and len(text) > 10:
@@ -154,15 +206,22 @@ class SelfModel:
             })
             links.append({"source": "Self", "target": "Goal", "strength": 0.6})
 
-        for i, belief in enumerate(self.beliefs[-4:]):
+        belief_export = belief_list if belief_list else [Belief(b, 1.0) for b in self.beliefs[-4:]]
+        for i, belief in enumerate(belief_export[:4]):
             belief_id = f"Belief_{i}"
+            if hasattr(belief, 'strength'):
+                belief_strength = belief.strength
+                belief_text = belief.text
+            else:
+                belief_strength = 1.0
+                belief_text = str(belief)
             nodes.append({
                 "id": belief_id,
                 "group": "belief",
-                "value": 5,
-                "text": belief[:45],
+                "value": 4 + min(4, belief_strength),
+                "text": belief_text[:45],
             })
-            links.append({"source": "Self", "target": belief_id, "strength": 0.4})
+            links.append({"source": "Identity", "target": belief_id, "strength": 0.2 + belief_strength * 0.3})
 
         for key, val in self.state_vector.items():
             metric_id = f"Metric_{key}"
@@ -182,6 +241,7 @@ class SelfModel:
                 "conflict": conflict,
                 "entropy": entropy,
                 "tick": self.tick,
+                "identity": self.identity_vector,
             },
         }
 

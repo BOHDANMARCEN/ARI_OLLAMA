@@ -30,12 +30,18 @@ type GraphData = {
     conflict: number;
     entropy: number;
     tick: number;
+    identity?: {
+      stability: number;
+      curiosity: number;
+      aggression: number;
+    };
   };
 };
 
 const groupColors: Record<string, string> = {
   voice: "#f97316",
   core: "#00ffcc",
+  identity: "#00ffcc",
   thought: "#a855f7",
   goal: "#22c55e",
   belief: "#eab308",
@@ -265,6 +271,26 @@ export default function BrainGraph() {
               <span className="hud-label">entropy</span>
               <span className="hud-value">{meta.entropy?.toFixed(2) || "0.00"}</span>
             </div>
+            {meta.identity && (
+              <>
+                <div className="hud-divider" />
+                <div className="hud-item">
+                  <span className="hud-icon">🧬</span>
+                  <span className="hud-label">stability</span>
+                  <span className="hud-value identity">{meta.identity.stability?.toFixed(2) || "0.00"}</span>
+                </div>
+                <div className="hud-item">
+                  <span className="hud-icon">🔭</span>
+                  <span className="hud-label">curiosity</span>
+                  <span className="hud-value identity">{meta.identity.curiosity?.toFixed(2) || "0.00"}</span>
+                </div>
+                <div className="hud-item">
+                  <span className="hud-icon">⚔️</span>
+                  <span className="hud-label">aggression</span>
+                  <span className="hud-value identity">{meta.identity.aggression?.toFixed(2) || "0.00"}</span>
+                </div>
+              </>
+            )}
             <div className="hud-item tick">
               <span className="hud-value">#{meta.tick || 0}</span>
             </div>

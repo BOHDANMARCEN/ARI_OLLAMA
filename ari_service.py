@@ -6,6 +6,7 @@ from datetime import datetime
 
 from anchors import format_anchors, get_anchors
 from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator
+from belief_system import BeliefSystem
 from config import CONSOLIDATION_INTERVAL, GOAL_UPDATE_INTERVAL, MEMORY_RESULTS, MODEL, TICK_SECONDS
 from interface import ARIInterface
 from memory import Memory
@@ -60,7 +61,7 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
             emit("error", message=f"Unsupported message type: {msg_type}")
 
 
-async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
+async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
     emit("status", phase="started", model=MODEL, memory_count=mem.count())
 
     while not shutdown_event.is_set():
@@ -119,13 +120,23 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
 
         self_model.update_state(synthesis, voices=voices, had_user_input=has_user_input)
 
+        belief_system.update()
+        extracted = belief_system.extract_from_text(synthesis)
+        for b in extracted:
+            belief_system.add(b, strength=0.8)
+        belief_system.reinforce(synthesis)
+
         if tick % CONSOLIDATION_INTERVAL == 0:
             deep_memories = mem.recall("important patterns beliefs", n=10)
             deep_text = mem.format_for_context(deep_memories, max_chars=1200)
             belief = await extract_belief(deep_text)
-            self_model.add_belief(belief)
-            mem.store(belief, kind="belief", weight=2.0)
-            emit("belief", tick=tick, text=belief)
+            if belief:
+                belief_system.add(belief, strength=1.2)
+                self_model.add_belief(belief)
+                mem.store(belief, kind="belief", weight=2.0)
+                emit("belief", tick=tick, text=belief)
+
+        self_model.update_identity_from_belief_system(belief_system)
 
         emit(
             "brain_snapshot",
@@ -134,7 +145,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices, memories)
+        graph_state = self_model.export_graph_state(voices, memories, belief_system)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",
@@ -164,12 +175,13 @@ async def main() -> None:
 
     mem = Memory()
     self_model = SelfModel()
+    belief_system = BeliefSystem()
     interface = ARIInterface()
     shutdown_event = asyncio.Event()
 
     try:
         await asyncio.gather(
-            ari_loop_service(mem, self_model, interface, shutdown_event),
+            ari_loop_service(mem, self_model, belief_system, interface, shutdown_event),
             stdin_bridge(interface, shutdown_event),
         )
     except Exception as exc:

@@ -9,25 +9,38 @@ type GraphNode = {
   text?: string;
   x?: number;
   y?: number;
+  power?: number;
+  xBias?: number;
+  yBias?: number;
+  vx?: number;
+  vy?: number;
 };
 
 type GraphLink = {
-  source: string;
-  target: string;
+  source: string | GraphNode;
+  target: string | GraphNode;
+  strength: number;
 };
 
 type GraphData = {
   nodes: GraphNode[];
   links: GraphLink[];
+  meta?: {
+    coherence: number;
+    conflict: number;
+    entropy: number;
+    tick: number;
+  };
 };
 
 const groupColors: Record<string, string> = {
   voice: "#f97316",
-  core: "#3b82f6",
+  core: "#00ffcc",
   thought: "#a855f7",
   goal: "#22c55e",
   belief: "#eab308",
   metric: "#ec4899",
+  memory: "#ffaa00",
 };
 
 const MIN_WIDTH = 260;
@@ -38,15 +51,23 @@ const EXPANDED_WIDTH = 600;
 const EXPANDED_HEIGHT = 400;
 
 export default function BrainGraph() {
-  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
+  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [], meta: undefined });
   const [isExpanded, setIsExpanded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [pulsePhase, setPulsePhase] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPulsePhase((p) => (p + 0.05) % (2 * Math.PI));
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:3000/ws");
@@ -143,29 +164,61 @@ export default function BrainGraph() {
   const nodeCanvasObject = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.label || node.id;
-      const fontSize = 12 / globalScale;
-      const nodeRadius = Math.sqrt(node.value) * 2;
+      const baseRadius = Math.sqrt(node.value) * 2;
+      const pulse = Math.sin(pulsePhase + (node.power || 0) * 2) * 0.15 + 1;
+      const radius = baseRadius * pulse;
+
+      const color = groupColors[node.group] || "#6b7280";
+
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 15 + (node.power || 0) * 10;
 
       ctx.beginPath();
-      ctx.arc(node.x || 0, node.y || 0, nodeRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = groupColors[node.group] || "#6b7280";
+      ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
       ctx.fill();
 
-      ctx.font = `${fontSize}px Sans-Serif`;
+      ctx.shadowBlur = 0;
+
+      const innerRadius = radius * 0.5;
+      const gradient = ctx.createRadialGradient(
+        node.x || 0, node.y || 0, 0,
+        node.x || 0, node.y || 0, innerRadius
+      );
+      gradient.addColorStop(0, "rgba(255,255,255,0.3)");
+      gradient.addColorStop(1, "transparent");
+      ctx.beginPath();
+      ctx.arc(node.x || 0, node.y || 0, innerRadius, 0, 2 * Math.PI);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      const fontSize = Math.max(8, 11 / globalScale);
+      ctx.font = `bold ${fontSize}px Sans-Serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(label, node.x || 0, node.y || 0 + nodeRadius + fontSize + 2);
+      ctx.fillText(label, node.x || 0, node.y || 0);
 
-      if (node.text) {
-        const subFontSize = Math.max(6, fontSize - 2);
+      if (node.text && globalScale > 0.8) {
+        const subFontSize = Math.max(5, fontSize - 3);
         ctx.font = `${subFontSize}px Sans-Serif`;
         ctx.fillStyle = "#9ca3af";
-        ctx.fillText(node.text.substring(0, 30), node.x || 0, node.y || 0 + nodeRadius + fontSize + subFontSize + 6);
+        const textY = node.y || 0 + radius + subFontSize + 3;
+        ctx.fillText(node.text.substring(0, 25), node.x || 0, textY);
       }
     },
-    []
+    [pulsePhase]
   );
+
+  const linkWidth = useCallback((link: GraphLink) => {
+    return Math.max(1, (link.strength || 0.5) * 3);
+  }, []);
+
+  const linkDirectionalParticleSpeed = useCallback((link: GraphLink) => {
+    return 0.002 + (link.strength || 0.5) * 0.004;
+  }, []);
+
+  const meta = graphData.meta;
 
   return (
     <section className="panel brain-graph-panel">
@@ -195,6 +248,29 @@ export default function BrainGraph() {
       >
         <div className="resize-handle resize-se" />
 
+        {meta && (
+          <div className="graph-hud">
+            <div className="hud-item">
+              <span className="hud-icon">🧠</span>
+              <span className="hud-label">coherence</span>
+              <span className="hud-value">{meta.coherence?.toFixed(2) || "0.00"}</span>
+            </div>
+            <div className="hud-item">
+              <span className="hud-icon">⚡</span>
+              <span className="hud-label">conflict</span>
+              <span className="hud-value">{meta.conflict?.toFixed(2) || "0.00"}</span>
+            </div>
+            <div className="hud-item">
+              <span className="hud-icon">🌪</span>
+              <span className="hud-label">entropy</span>
+              <span className="hud-value">{meta.entropy?.toFixed(2) || "0.00"}</span>
+            </div>
+            <div className="hud-item tick">
+              <span className="hud-value">#{meta.tick || 0}</span>
+            </div>
+          </div>
+        )}
+
         {graphData.nodes.length === 0 ? (
           <div className="graph-empty">
             <p>Waiting for brain data...</p>
@@ -205,12 +281,12 @@ export default function BrainGraph() {
             graphData={graphData}
             nodeLabel={(node: any) => node.label || node.id}
             nodeCanvasObject={nodeCanvasObject}
-            nodeVal={(node: any) => Math.sqrt(node.value) * 3}
+            nodeVal={(node: any) => Math.sqrt(node.value) * 2.5}
             nodeAutoColorBy="group"
             linkColor={() => "#374151"}
-            linkWidth={1}
-            linkDirectionalParticles={2}
-            linkDirectionalParticleSpeed={0.005}
+            linkWidth={linkWidth}
+            linkDirectionalParticles={3}
+            linkDirectionalParticleSpeed={linkDirectionalParticleSpeed}
             linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={() => "#60a5fa"}
             backgroundColor="#0f172a"
@@ -218,8 +294,8 @@ export default function BrainGraph() {
             height={dimensions.height}
             cooldownTicks={100}
             onNodeClick={handleNodeClick}
-            d3VelocityDecay={0.3}
-            d3AlphaDecay={0.02}
+            d3VelocityDecay={0.25}
+            d3AlphaDecay={0.015}
           />
         )}
       </div>

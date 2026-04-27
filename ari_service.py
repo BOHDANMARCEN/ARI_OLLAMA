@@ -134,7 +134,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, interface: ARIInt
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices)
+        graph_state = self_model.export_graph_state(voices, memories)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",

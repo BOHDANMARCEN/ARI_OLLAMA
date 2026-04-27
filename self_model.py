@@ -70,66 +70,120 @@ class SelfModel:
             "state_vector": self.state_vector,
         }
 
-    def export_graph_state(self, voices: dict[str, str] | None = None) -> dict:
-        """Export brain state for force graph visualization."""
+    def _score_power(self, text: str, keywords: list[str]) -> float:
+        """Score voice power based on keyword presence."""
+        if not text:
+            return 0.0
+        text_lower = text.lower()
+        score = sum(0.3 for kw in keywords if kw in text_lower)
+        score += 0.2 * min(1.0, len(text) / 200)
+        return round(score + 0.2, 3)
+
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None) -> dict:
+        """Export brain state for force graph visualization with live metrics."""
+        voice_texts = voices or {}
+
+        explorer_text = voice_texts.get("Explorer", "")
+        critic_text = voice_texts.get("Critic", "")
+        consolidator_text = voice_texts.get("Consolidator", "")
+
+        explorer_power = self._score_power(explorer_text, ["new", "risk", "explore", "unknown", "change", "push", "try"])
+        critic_power = self._score_power(critic_text, ["error", "flaw", "contradiction", "problem", "issue", "wrong", "weak"])
+        consolidator_power = self._score_power(consolidator_text, ["stable", "keep", "continue", "pattern", "integrate", "connect"])
+
+        coherence = round(0.5 + (consolidator_power * 0.3) - (abs(explorer_power - critic_power) * 0.2), 3)
+        coherence = max(0.1, min(1.0, coherence))
+
+        conflict = round(abs(explorer_power - consolidator_power) + (critic_power * 0.5), 3)
+
+        entropy = round(0.3 + (explorer_power * 0.3) + (critic_power * 0.2) + (1 - coherence) * 0.2, 3)
+        entropy = max(0.1, min(1.0, entropy))
+
+        x_bias = round((explorer_power - critic_power) * 0.15, 3)
+        y_bias = round((consolidator_power - explorer_power) * 0.1 + (self.state_vector.get("stability", 0.5) - 0.5) * 0.1, 3)
+
         nodes = [
-            {"id": "Explorer", "group": "voice", "value": 15},
-            {"id": "Consolidator", "group": "voice", "value": 15},
-            {"id": "Critic", "group": "voice", "value": 15},
-            {"id": "Mediator", "group": "core", "value": 25},
-            {"id": "Self", "group": "core", "value": 30},
+            {"id": "Explorer", "group": "voice", "value": 8 + explorer_power * 5, "power": explorer_power},
+            {"id": "Critic", "group": "voice", "value": 8 + critic_power * 5, "power": critic_power},
+            {"id": "Consolidator", "group": "voice", "value": 8 + consolidator_power * 5, "power": consolidator_power},
+            {"id": "Mediator", "group": "core", "value": 18, "xBias": x_bias, "yBias": y_bias},
+            {"id": "Self", "group": "core", "value": 22, "xBias": x_bias * 0.5, "yBias": y_bias * 0.5},
         ]
 
         links = [
-            {"source": "Explorer", "target": "Mediator"},
-            {"source": "Consolidator", "target": "Mediator"},
-            {"source": "Critic", "target": "Mediator"},
-            {"source": "Mediator", "target": "Self"},
+            {"source": "Explorer", "target": "Mediator", "strength": 0.3 + explorer_power * 0.7},
+            {"source": "Critic", "target": "Mediator", "strength": 0.3 + critic_power * 0.7},
+            {"source": "Consolidator", "target": "Mediator", "strength": 0.3 + consolidator_power * 0.7},
+            {"source": "Mediator", "target": "Self", "strength": 0.8},
         ]
 
-        voice_texts = voices or {}
         for name, text in voice_texts.items():
             if text and len(text) > 10:
                 thought_id = f"Thought_{name}_{self.tick}"
                 nodes.append({
                     "id": thought_id,
                     "group": "thought",
-                    "value": 5,
+                    "value": 4 + len(text) / 100,
                     "label": name,
-                    "text": text[:80],
+                    "text": text[:60],
                 })
-                links.append({"source": name, "target": thought_id})
+                links.append({"source": name, "target": thought_id, "strength": 0.4})
+
+        memory_list = memories or []
+        for i, mem in enumerate(memory_list[:5]):
+            mem_id = f"mem_{i}"
+            mem_weight = mem.get("weight", 0.5) if isinstance(mem, dict) else 0.5
+            nodes.append({
+                "id": mem_id,
+                "group": "memory",
+                "value": 3 + min(7, mem_weight * 10),
+                "text": mem.get("text", "")[:50] if isinstance(mem, dict) else str(mem)[:50],
+            })
+            links.append({
+                "source": mem_id,
+                "target": "Mediator",
+                "strength": 0.2 + mem_weight * 0.5,
+            })
 
         if self.goal:
             nodes.append({
                 "id": "Goal",
                 "group": "goal",
-                "value": 20,
-                "text": self.goal[:60],
+                "value": 12,
+                "text": self.goal[:50],
             })
-            links.append({"source": "Self", "target": "Goal"})
+            links.append({"source": "Self", "target": "Goal", "strength": 0.6})
 
-        for i, belief in enumerate(self.beliefs[-5:]):
+        for i, belief in enumerate(self.beliefs[-4:]):
             belief_id = f"Belief_{i}"
             nodes.append({
                 "id": belief_id,
                 "group": "belief",
-                "value": 8,
-                "text": belief[:60],
+                "value": 5,
+                "text": belief[:45],
             })
-            links.append({"source": "Self", "target": belief_id})
+            links.append({"source": "Self", "target": belief_id, "strength": 0.4})
 
         for key, val in self.state_vector.items():
             metric_id = f"Metric_{key}"
             nodes.append({
                 "id": metric_id,
                 "group": "metric",
-                "value": int(val * 10) + 5,
+                "value": 3 + int(val * 8),
                 "text": f"{key}: {val:.2f}",
             })
-            links.append({"source": "Self", "target": metric_id})
+            links.append({"source": "Self", "target": metric_id, "strength": 0.3})
 
-        return {"nodes": nodes, "links": links}
+        return {
+            "nodes": nodes,
+            "links": links,
+            "meta": {
+                "coherence": coherence,
+                "conflict": conflict,
+                "entropy": entropy,
+                "tick": self.tick,
+            },
+        }
 
     def _update_state_vector(
         self,

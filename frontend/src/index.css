@@ -580,6 +580,52 @@ textarea {
   font-style: italic;
 }
 
+/* Brain Graph HUD */
+.graph-hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  z-index: 10;
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: #e2e8f0;
+}
+
+.hud-item.tick {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: center;
+}
+
+.hud-icon {
+  font-size: 0.75rem;
+}
+
+.hud-label {
+  color: #94a3b8;
+  min-width: 55px;
+}
+
+.hud-value {
+  font-weight: 600;
+  font-family: "SF Mono", "Consolas", monospace;
+  color: #22d3ee;
+  margin-left: auto;
+}
+
 .text-button {
   background: none;
   border: none;

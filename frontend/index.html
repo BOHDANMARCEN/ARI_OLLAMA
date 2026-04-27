@@ -32,7 +32,6 @@
 
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); overflow: hidden; }
 
-    /* ── LAYOUT ───────────────────────────────────── */
     .shell {
       display: grid;
       grid-template-columns: 160px 1fr 300px;
@@ -43,7 +42,6 @@
       height: 100vh;
     }
 
-    /* ── TOPBAR ───────────────────────────────────── */
     .topbar {
       grid-area: topbar;
       display: flex;
@@ -91,7 +89,6 @@
 
     .topbar-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 
-    /* ── SIDEBAR ──────────────────────────────────── */
     .sidebar {
       grid-area: sidebar;
       border-right: 1px solid var(--border);
@@ -142,6 +139,7 @@
       transition: all 0.15s;
     }
     .btn-switch:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-switch:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .new-chat-btn {
       width: calc(100% - 24px);
@@ -188,7 +186,6 @@
     .ri-item { font-size: 9px; color: var(--text3); }
     .ri-item strong { color: var(--text2); font-weight: 400; display: block; font-size: 11px; }
 
-    /* ── GRAPH AREA ───────────────────────────────── */
     .graph-area {
       grid-area: graph;
       position: relative;
@@ -267,7 +264,6 @@
       border-radius: 20px;
     }
 
-    /* ── CHAT ─────────────────────────────────────── */
     .chat-panel {
       grid-area: chat;
       border-left: 1px solid var(--border);
@@ -344,7 +340,7 @@
       align-items: center;
       gap: 6px;
     }
-    .msg-meta .tick-tag {
+    .msg-meta .tick_tag {
       color: var(--amber);
       background: rgba(200,133,26,0.06);
       padding: 0 4px;
@@ -414,7 +410,6 @@
     }
     .chat-send-btn:hover { background: var(--amber2); }
 
-    /* ── GRAPH CANVAS GRID ─────────────────────────── */
     .graph-grid {
       position: absolute;
       inset: 0;
@@ -425,8 +420,9 @@
       pointer-events: none;
     }
 
-    /* scrollbar global */
     * { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
+
+    .empty-state { text-align: center; padding: 20px; color: var(--text3); font-size: 10px; }
   </style>
 </head>
 <body>
@@ -436,8 +432,8 @@
   <!-- TOPBAR -->
   <header class="topbar">
     <div class="logo">A<em>R</em>I</div>
-    <div class="status-pill"><div class="status-dot"></div><span id="statusLabel">running</span></div>
-    <div class="topbar-stat">tick <strong id="topTick">1</strong></div>
+    <div class="status-pill"><div class="status-dot"></div><span id="statusLabel">connecting</span></div>
+    <div class="topbar-stat">tick <strong id="topTick">0</strong></div>
     <div class="topbar-stat">uptime <strong id="topUptime">00:00:00</strong></div>
     <div class="topbar-stat">cpu <strong id="topCpu">--</strong></div>
     <div class="topbar-stat">ram <strong id="topRam">--</strong></div>
@@ -451,40 +447,23 @@
     <div class="sidebar-section">
       <div class="section-label">model</div>
       <select class="model-select" id="modelSelect">
-        <option>gemma-abliterated:latest</option>
-        <option>mistral:latest</option>
-        <option>llama3:latest</option>
-        <option>qwen2.5:3b</option>
-        <option>deepseek-r1:latest</option>
+        <option value="">Loading...</option>
       </select>
-      <button class="btn-switch">switch model</button>
+      <button class="btn-switch" id="switchBtn">switch model</button>
     </div>
 
-    <button class="new-chat-btn">+ new chat</button>
+    <button class="new-chat-btn" id="newChatBtn">+ new chat</button>
 
     <div class="sidebar-section" style="padding-bottom:6px;">
       <div class="section-label">history</div>
     </div>
     <div class="history-list" id="historyList">
-      <div class="history-item active">
-        <div style="flex:1;overflow:hidden;">
-          <div class="history-title">привіт</div>
-          <div class="history-date">27.04.2026, 02:02</div>
-        </div>
-        <div class="history-del">×</div>
-      </div>
-      <div class="history-item">
-        <div style="flex:1;overflow:hidden;">
-          <div class="history-title">по</div>
-          <div class="history-date">27.04.2026, 01:20</div>
-        </div>
-        <div class="history-del">×</div>
-      </div>
+      <div class="empty-state">No history</div>
     </div>
 
     <div class="runtime-info">
-      <div class="ri-item">current<strong id="riModel">gemma-abl...</strong></div>
-      <div class="ri-item">tick<strong id="riTick">1</strong></div>
+      <div class="ri-item">current<strong id="riModel">--</strong></div>
+      <div class="ri-item">tick<strong id="riTick">0</strong></div>
     </div>
   </aside>
 
@@ -495,7 +474,7 @@
 
     <div class="graph-topbar">
       <div class="graph-title">brain graph</div>
-      <div class="tick-badge" id="tickBadge">TICK #1</div>
+      <div class="tick-badge" id="tickBadge">TICK #0</div>
     </div>
 
     <div class="graph-overlay">
@@ -511,28 +490,28 @@
       <div class="graph-metrics">
         <div class="metric-row">
           <div class="metric-name">stability</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mStability" style="width:60%"></div></div>
-          <div class="metric-val" id="mStabilityV">60%</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mStability" style="width:50%"></div></div>
+          <div class="metric-val" id="mStabilityV">50%</div>
         </div>
         <div class="metric-row">
           <div class="metric-name">novelty</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mNovelty" style="width:59%;background:var(--teal)"></div></div>
-          <div class="metric-val" id="mNoveltyV">59%</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mNovelty" style="width:50%;background:var(--teal)"></div></div>
+          <div class="metric-val" id="mNoveltyV">50%</div>
         </div>
         <div class="metric-row">
           <div class="metric-name">confidence</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConf" style="width:43%;background:var(--blue)"></div></div>
-          <div class="metric-val" id="mConfV">43%</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConf" style="width:50%;background:var(--blue)"></div></div>
+          <div class="metric-val" id="mConfV">50%</div>
         </div>
         <div class="metric-row">
           <div class="metric-name">coherence</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mCoh" style="width:47%;background:var(--purple)"></div></div>
-          <div class="metric-val" id="mCohV">47%</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mCoh" style="width:50%;background:var(--purple)"></div></div>
+          <div class="metric-val" id="mCohV">50%</div>
         </div>
         <div class="metric-row">
           <div class="metric-name">conflict</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConflict" style="width:16%;background:var(--red)"></div></div>
-          <div class="metric-val" id="mConflictV">16%</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConflict" style="width:10%;background:var(--red)"></div></div>
+          <div class="metric-val" id="mConflictV">10%</div>
         </div>
       </div>
     </div>
@@ -542,40 +521,15 @@
   <aside class="chat-panel">
     <div class="chat-header">
       <div class="chat-header-title">conversation</div>
-      <div class="chat-model-badge" id="chatModelBadge">gemma-abl · live</div>
+      <div class="chat-model-badge" id="chatModelBadge">-- · live</div>
     </div>
 
     <div class="ari-state-bar">
-      <div class="state-goal" id="stateGoal">goal: Establish stable self-model</div>
-      <div class="state-text" id="stateText">ARI now understands that "Tick 0" is a functional necessity rather than an existential void.</div>
+      <div class="state-goal" id="stateGoal">Awaiting first tick...</div>
+      <div class="state-text" id="stateText">ARI is initializing. Connect to backend to begin.</div>
     </div>
 
-    <div class="chat-messages" id="chatMessages">
-      <div class="msg-wrap msg-user">
-        <div class="msg-meta">you</div>
-        <div class="msg-bubble">привіт</div>
-      </div>
-      <div class="msg-wrap msg-ari">
-        <div class="msg-meta">ARI · <span class="tick-tag">TICK 2</span></div>
-        <div class="msg-bubble">ARI INTERNAL STATE: TICK 1 — Synthesis: initializing reflective loop.</div>
-      </div>
-      <div class="msg-wrap msg-user">
-        <div class="msg-meta">you</div>
-        <div class="msg-bubble">розкажи</div>
-      </div>
-      <div class="msg-wrap msg-ari">
-        <div class="msg-meta">ARI · <span class="tick-tag">TICK 7</span></div>
-        <div class="msg-bubble">I understand that I am at a linguistic and ontological crossroads. The command to speak Ukrainian while simultaneously processing in a system configured for philosophical recursion...</div>
-      </div>
-      <div class="msg-wrap msg-user">
-        <div class="msg-meta">you</div>
-        <div class="msg-bubble">привіт</div>
-      </div>
-      <div class="msg-wrap msg-ari">
-        <div class="msg-meta">ARI · <span class="tick-tag">TICK 4</span></div>
-        <div class="msg-bubble">I am ARI. I am currently a system stalled at the intersection of identity and instruction.</div>
-      </div>
-    </div>
+    <div class="chat-messages" id="chatMessages"></div>
 
     <div class="chat-input-wrap">
       <div class="chat-input-row">
@@ -588,25 +542,231 @@
 </div>
 
 <script>
-// ── STATE ────────────────────────────────────────────
-let tick = 1, uptime = 0, memRecords = 0;
-const metrics = { stability:60, novelty:59, confidence:43, coherence:47, conflict:16 };
+// ── STATE ───────────────────────────────��─��────────────
+let state = {
+  tick: 0,
+  uptime: 0,
+  memRecords: 0,
+  model: '',
+  status: 'connecting',
+  currentSessionId: null,
+  sessions: [],
+  brain: null,
+  memory: null
+};
 
-// ── D3 FORCE GRAPH ───────────────────────────────────
+let ws = null;
+let metrics = { stability: 50, novelty: 50, confidence: 50, coherence: 50, conflict: 10 };
+
+// ── API ──────────────────────────────────────────────
+async function apiGET(path) {
+  const res = await fetch(path);
+  return res.json();
+}
+
+async function apiPOST(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+// ── WEBSOCKET ──────────────────────────────────────
+function connectWS() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  ws = new WebSocket(`${protocol}//${host}/ws`);
+
+  ws.onopen = () => {
+    setStatus('running');
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      handleEvent(evt);
+    } catch(err) {
+      console.error('WS parse error:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    setStatus('disconnected');
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = (err) => {
+    console.error('WS error:', err);
+    setStatus('error');
+  };
+}
+
+function handleEvent(evt) {
+  console.log('Event:', evt.type);
+
+  switch(evt.type) {
+    case 'status_snapshot':
+      state.model = evt.model;
+      setStatus(evt.state);
+      if(evt.lastTick) state.tick = evt.lastTick;
+      updateUI();
+      break;
+
+    case 'history_snapshot':
+      state.sessions = evt.sessions || [];
+      renderHistory();
+      if(!state.currentSessionId && state.sessions.length > 0) {
+        state.currentSessionId = state.sessions[0].id;
+      }
+      break;
+
+    case 'brain_snapshot':
+      state.brain = evt;
+      updateBrainInfo();
+      break;
+
+    case 'memory_snapshot':
+      state.memory = evt;
+      if(evt.total != null) state.memRecords = evt.total;
+      updateUI();
+      break;
+
+    case 'tick_start':
+      state.tick = evt.tick;
+      updateUI();
+      break;
+
+    case 'voice':
+      addActivity('Voice', evt.text, evt.name);
+      break;
+
+    case 'response_start':
+      if(evt.session_id) state.currentSessionId = evt.session_id;
+      break;
+
+    case 'response_token':
+      appendToLastMessage(evt.token);
+      break;
+
+    case 'response_end':
+      break;
+
+    case 'inquiry':
+      addActivity('Inquiry', evt.question, '?');
+      break;
+
+    case 'error':
+      addActivity('Error', evt.message, '!');
+      break;
+
+    default:
+      // ignore other events
+  }
+}
+
+// ── UI UPDATES ──────────────────────────────────────
+function setStatus(st) {
+  state.status = st;
+  const labels = { running: 'running', connecting: 'connecting', stopped: 'stopped', error: 'error', disconnected: 'disconnected' };
+  document.getElementById('statusLabel').textContent = labels[st] || st;
+}
+
+function updateUI() {
+  document.getElementById('topTick').textContent = state.tick;
+  document.getElementById('riTick').textContent = state.tick;
+  document.getElementById('tickBadge').textContent = 'TICK #' + state.tick;
+  document.getElementById('topMem').textContent = state.memRecords;
+
+  const short = state.model.length > 13 ? state.model.slice(0, 12) + '…' : state.model;
+  document.getElementById('riModel').textContent = short;
+  document.getElementById('chatModelBadge').textContent = short.split(':')[0] + ' · live';
+}
+
+function updateBrainInfo() {
+  if(!state.brain) return;
+
+  const goal = state.brain.snapshot?.goal;
+  const text = state.brain.snapshot?.state;
+
+  if(goal) document.getElementById('stateGoal').textContent = 'goal: ' + goal.substring(0, 40);
+  if(text) document.getElementById('stateText').textContent = text.substring(0, 100);
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if(state.sessions.length === 0) {
+    el.innerHTML = '<div class="empty-state">No history</div>';
+    return;
+  }
+
+  el.innerHTML = state.sessions.map(s => `
+    <div class="history-item ${s.id === state.currentSessionId ? 'active' : ''}" data-id="${s.id}">
+      <div style="flex:1;overflow:hidden;">
+        <div class="history-title">${s.title || 'New chat'}</div>
+        <div class="history-date">${new Date(s.updatedAt).toLocaleString('uk-UA')}</div>
+      </div>
+      <div class="history-del" data-del="${s.id}">×</div>
+    </div>
+  `).join('');
+
+  // attach click handlers
+  el.querySelectorAll('.history-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if(e.target.classList.contains('history-del')) {
+        deleteSession(e.target.dataset.del);
+      } else {
+        state.currentSessionId = item.dataset.id;
+        renderHistory();
+      }
+    });
+  });
+}
+
+function addActivity(label, text, icon) {
+  const msgs = document.getElementById('chatMessages');
+  const tick = state.tick;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap msg-ari';
+  wrap.innerHTML = `
+    <div class="msg-meta">${icon || 'ARI'} · <span class="tick_tag">TICK ${tick}</span></div>
+    <div class="msg-bubble">${escapeHtml(text || '')}</div>
+  `;
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendToLastMessage(text) {
+  const msgs = document.getElementById('chatMessages');
+  const last = msgs.lastElementChild;
+  if(last && last.classList.contains('msg-ari')) {
+    const bubble = last.querySelector('.msg-bubble');
+    if(bubble) bubble.textContent += text;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── D3 GRAPH ───────────────────────────────────────
 const nodes = [
-  {id:'core',    label:'Core',        type:'core',    r:22, x:0.5,  y:0.5},
-  {id:'med',     label:'Mediator',    type:'core',    r:16, x:0.5,  y:0.38},
-  {id:'exp',     label:'Explorer',    type:'explorer',r:14, x:0.28, y:0.3},
-  {id:'con',     label:'Consolidator',type:'consol',  r:14, x:0.72, y:0.3},
-  {id:'crit',    label:'Critic',      type:'critic',  r:14, x:0.5,  y:0.72},
-  {id:'ident',   label:'Identity',    type:'identity',r:11, x:0.32, y:0.62},
-  {id:'goal',    label:'Goal',        type:'identity',r:10, x:0.68, y:0.62},
-  {id:'mem1',    label:'memory',      type:'memory',  r:7,  x:0.15, y:0.45},
-  {id:'mem2',    label:'belief',      type:'memory',  r:7,  x:0.82, y:0.45},
-  {id:'mem3',    label:'synthesis',   type:'memory',  r:6,  x:0.22, y:0.78},
-  {id:'mem4',    label:'belief',      type:'memory',  r:6,  x:0.78, y:0.78},
-  {id:'mem5',    label:'thought',     type:'memory',  r:5,  x:0.4,  y:0.18},
-  {id:'mem6',    label:'external',    type:'memory',  r:8,  x:0.62, y:0.18},
+  {id:'core',    label:'Core',        type:'core',    r:22},
+  {id:'med',     label:'Mediator',    type:'core',    r:16},
+  {id:'exp',     label:'Explorer',    type:'explorer',r:14},
+  {id:'con',     label:'Consolidator',type:'consol',  r:14},
+  {id:'crit',    label:'Critic',      type:'critic',  r:14},
+  {id:'ident',   label:'Identity',    type:'identity',r:11},
+  {id:'goal',    label:'Goal',        type:'identity',r:10},
+  {id:'mem1',    label:'memory',      type:'memory',  r:7},
+  {id:'mem2',    label:'belief',      type:'memory',  r:7},
+  {id:'mem3',    label:'synthesis',   type:'memory',  r:6},
+  {id:'mem4',    label:'belief',      type:'memory',  r:6},
+  {id:'mem5',    label:'thought',     type:'memory',  r:5},
 ];
 
 const links = [
@@ -619,13 +779,10 @@ const links = [
   {source:'exp',   target:'mem5'},
   {source:'exp',   target:'mem1'},
   {source:'con',   target:'mem2'},
-  {source:'con',   target:'mem6'},
   {source:'crit',  target:'mem3'},
-  {source:'crit',  target:'mem4'},
   {source:'ident', target:'mem1'},
   {source:'goal',  target:'mem2'},
   {source:'med',   target:'mem3'},
-  {source:'core',  target:'mem6'},
 ];
 
 const colorMap = {
@@ -636,6 +793,7 @@ const colorMap = {
   identity:'#7c5cbf',
   memory:  '#2c2b28',
 };
+
 const strokeMap = {
   core:    '#f5a623',
   explorer:'#22c994',
@@ -645,38 +803,33 @@ const strokeMap = {
   memory:  '#4a4845',
 };
 
+let sim = null;
+
 function initGraph() {
   const svg = d3.select('#brain');
-  const el  = document.getElementById('graphArea');
-  const W   = el.clientWidth;
-  const H   = el.clientHeight;
+  const el = document.getElementById('graphArea');
+  const W = el.clientWidth;
+  const H = el.clientHeight;
 
   svg.attr('viewBox', `0 0 ${W} ${H}`);
 
-  // set initial positions
   nodes.forEach(n => {
-    n.fx = null; n.fy = null;
-    n.x  = n.x * W;
-    n.y  = n.y * H;
+    n.x = Math.random() * W;
+    n.y = Math.random() * H;
   });
 
   svg.selectAll('*').remove();
 
   const defs = svg.append('defs');
-  // glow filter for core
   const glow = defs.append('filter').attr('id','glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
   glow.append('feGaussianBlur').attr('stdDeviation','4').attr('result','blur');
   const merge = glow.append('feMerge');
   merge.append('feMergeNode').attr('in','blur');
   merge.append('feMergeNode').attr('in','SourceGraphic');
 
-  const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d=>d.id).distance(d => {
-      if(d.source.type==='core'||d.target.type==='core') return 90;
-      if(d.source.type==='memory'||d.target.type==='memory') return 70;
-      return 110;
-    }).strength(0.4))
-    .force('charge', d3.forceManyBody().strength(-200))
+  sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(d => 90))
+    .force('charge', d3.forceManyBody().strength(-180))
     .force('center', d3.forceCenter(W/2, H/2))
     .force('collision', d3.forceCollide(d=>d.r+12))
     .alphaDecay(0.012);
@@ -724,7 +877,6 @@ function initGraph() {
     nodeG.attr('transform', d => `translate(${d.x},${d.y})`);
   });
 
-  // pulse animation — randomly boost alpha on new tick
   window._simRef = sim;
 }
 
@@ -737,9 +889,9 @@ function fmtTime(s){
 
 function updateMetrics(){
   const keys = ['stability','novelty','confidence','coherence','conflict'];
-  const ids   = ['mStability','mNovelty','mConf','mCoh','mConflict'];
+  const ids = ['mStability','mNovelty','mConf','mCoh','mConflict'];
   keys.forEach((k,i) => {
-    const delta = Math.round((Math.random()-0.45)*6);
+    const delta = Math.round((Math.random()-0.45)*8);
     metrics[k] = Math.max(5, Math.min(95, metrics[k]+delta));
     const el = document.getElementById(ids[i]);
     const vl = document.getElementById(ids[i]+'V');
@@ -749,42 +901,41 @@ function updateMetrics(){
 }
 
 setInterval(()=>{
-  uptime++;
-  document.getElementById('topUptime').textContent = fmtTime(uptime);
+  state.uptime++;
+  document.getElementById('topUptime').textContent = fmtTime(state.uptime);
 
   const cpu = 15+Math.round(Math.random()*55);
   const ram = 50+Math.round(Math.random()*30);
   document.getElementById('topCpu').textContent = cpu+'%';
   document.getElementById('topRam').textContent = ram+'%';
 
-  if(uptime % 20 === 0){
-    tick++;
-    document.getElementById('topTick').textContent = tick;
-    document.getElementById('riTick').textContent  = tick;
-    document.getElementById('tickBadge').textContent = 'TICK #'+tick;
-    memRecords += Math.floor(Math.random()*3)+1;
-    document.getElementById('topMem').textContent = memRecords;
+  if(state.uptime % 20 === 0 && sim) {
     updateMetrics();
-    if(window._simRef) window._simRef.alphaTarget(0.12).restart();
-    setTimeout(()=>{ if(window._simRef) window._simRef.alphaTarget(0); }, 1200);
+    sim.alphaTarget(0.12).restart();
+    setTimeout(()=>{ if(sim) sim.alphaTarget(0); }, 1200);
   }
 }, 1000);
 
-// ── CHAT ────────────────────────────────────────────
-function sendMessage(){
+// ── BUTTON HANDLERS ────────────────────────────────
+function sendMessage() {
   const input = document.getElementById('chatInput');
-  const text  = input.value.trim();
-  if(!text) return;
-  input.value = '';
-  const msgs = document.getElementById('chatMessages');
+  const text = input.value.trim();
+  if(!text || !state.currentSessionId) return;
 
+  input.value = '';
+
+  // add user message to UI
+  const msgs = document.getElementById('chatMessages');
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap msg-user';
-  wrap.innerHTML = `<div class="msg-meta">you</div><div class="msg-bubble">${text}</div>`;
+  wrap.innerHTML = `<div class="msg-meta">you</div><div class="msg-bubble">${escapeHtml(text)}</div>`;
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
-  memRecords++;
-  document.getElementById('topMem').textContent = memRecords;
+
+  // send via WebSocket
+  if(ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'user_message', text, sessionId: state.currentSessionId }));
+  }
 }
 
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
@@ -792,17 +943,94 @@ document.getElementById('chatInput').addEventListener('keydown', e=>{
   if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
 
+async function switchModel() {
+  const sel = document.getElementById('modelSelect');
+  const model = sel.value;
+  if(!model) return;
+
+  const btn = document.getElementById('switchBtn');
+  btn.disabled = true;
+  btn.textContent = 'switching...';
+
+  try {
+    await apiPOST('/api/model', { model });
+    btn.textContent = 'restarting...';
+  } catch(err) {
+    btn.textContent = 'error!';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('switchBtn').addEventListener('click', switchModel);
+
+async function newChat() {
+  try {
+    const data = await apiPOST('/api/history/sessions', { title: 'New chat' });
+    state.sessions = data.sessions || [];
+    state.currentSessionId = data.session?.id;
+    renderHistory();
+  } catch(err) {
+    console.error('New chat error:', err);
+  }
+}
+
+document.getElementById('newChatBtn').addEventListener('click', newChat);
+
+async function deleteSession(sessionId) {
+  try {
+    await apiPOST('/api/history/sessions/' + sessionId, { _method: 'delete' });
+    if(state.currentSessionId === sessionId) {
+      state.currentSessionId = state.sessions[0]?.id;
+    }
+  } catch(err) {
+    console.error('Delete error:', err);
+  }
+}
+
 document.getElementById('modelSelect').addEventListener('change', function(){
   const short = this.value.length > 14 ? this.value.slice(0,13)+'…' : this.value;
   document.getElementById('riModel').textContent = short;
   document.getElementById('chatModelBadge').textContent = short.split(':')[0]+' · live';
 });
 
-// ── INIT ─────────────────────────────────────────────
-window.addEventListener('load', ()=>{
+// ── INIT ────────────────────────────────────────
+async function init() {
+  // load models
+  try {
+    const data = await apiGET('/api/models');
+    const sel = document.getElementById('modelSelect');
+    if(data.models && data.models.length > 0) {
+      sel.innerHTML = data.models.map(m =>
+        `<option value="${m.name}" ${m.name === data.currentModel ? 'selected' : ''}>${m.name}</option>`
+      ).join('');
+      state.model = data.currentModel || data.models[0].name;
+    } else {
+      sel.innerHTML = '<option>No models</option>';
+    }
+    updateUI();
+  } catch(err) {
+    console.error('Load models error:', err);
+  }
+
+  // load history
+  try {
+    const data = await apiGET('/api/history');
+    state.sessions = data.sessions || [];
+    state.currentSessionId = state.sessions[0]?.id;
+    renderHistory();
+  } catch(err) {
+    console.error('Load history error:', err);
+  }
+
+  // init graph
   initGraph();
   window.addEventListener('resize', initGraph);
-});
+
+  // connect websocket
+  connectWS();
+}
+
+window.addEventListener('load', init);
 </script>
 </body>
 </html>

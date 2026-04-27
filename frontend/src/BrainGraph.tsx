@@ -49,6 +49,18 @@ type GraphData = {
       last_thought: string;
       meta_beliefs_count: number;
     };
+    goal?: {
+      goals?: Array<{
+        text: string;
+        priority: number;
+        progress: number;
+      }>;
+      active_goal?: {
+        text: string;
+        progress: number;
+      };
+      observations?: string[];
+    };
   };
 };
 
@@ -327,6 +339,22 @@ export default function BrainGraph() {
                     </div>
                   </>
                 )}
+              </>
+            )}
+            {meta.goal?.active_goal && (
+              <>
+                <div className="hud-divider" />
+                <div className="hud-item goal">
+                  <span className="hud-icon">🎯</span>
+                  <span className="hud-label">goal</span>
+                  <span className="hud-value goal">{meta.goal.active_goal.text?.substring(0, 20) || "..."}</span>
+                </div>
+                <div className="hud-item goal-progress">
+                  <div className="progress-bar-wrap">
+                    <div className="progress-bar-fill" style={{ width: `${(meta.goal.active_goal.progress || 0) * 100}%` }} />
+                  </div>
+                  <span className="progress-val">{Math.round((meta.goal.active_goal.progress || 0) * 100)}%</span>
+                </div>
               </>
             )}
             <div className="hud-item tick">

@@ -8,6 +8,7 @@ from anchors import format_anchors, get_anchors
 from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator
 from belief_system import BeliefSystem
 from crisis_engine import CrisisEngine, detect_conflicts, compute_dissonance, crisis_response, update_identity_from_crisis
+from goal_system import GoalSystem
 from self_observer import SelfObserver
 from config import CONSOLIDATION_INTERVAL, GOAL_UPDATE_INTERVAL, MEMORY_RESULTS, MODEL, TICK_SECONDS
 from interface import ARIInterface
@@ -63,7 +64,7 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
             emit("error", message=f"Unsupported message type: {msg_type}")
 
 
-async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, self_observer: SelfObserver, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
+async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, goal_system: GoalSystem, self_observer: SelfObserver, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
     emit("status", phase="started", model=MODEL, memory_count=mem.count())
 
     while not shutdown_event.is_set():
@@ -99,7 +100,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             events_summary = "\n".join(f"  [{e.kind}]: {e.payload}" for e in external_events)
             context += f"EXTERNAL EVENTS THIS TICK:\n{events_summary}\n"
 
-        voices = await run_all_voices(context, meta_context=meta_context)
+        voices = await run_all_voices(context, meta_context, goal_context)
         
         for name, resp in voices.items():
             emit("voice", tick=tick, name=name, text=resp)
@@ -164,6 +165,26 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
         
         self_observer.apply_self_bias(self_model.identity_vector)
 
+        if tick % 3 == 0:
+            new_observations = goal_system.generate_from_reflection(
+                self_model.identity_vector,
+                dissonance,
+                len(belief_system.get_all()),
+                crisis_engine.active,
+            )
+            for obs in new_observations[:2]:
+                goal_system.add(obs, priority=0.9)
+
+        goal_system.update()
+        active_goal = goal_system.select()
+
+        if synthesis:
+            goal_system.update_progress(synthesis)
+
+        if active_goal:
+            emit("goal", tick=tick, text=active_goal.text, progress=active_goal.progress)
+
+        goal_context = goal_system.apply_goals_to_context()
         meta_context = self_observer.get_meta_context()
 
         emit(
@@ -173,7 +194,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer)
+        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer, goal_system)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",
@@ -205,13 +226,14 @@ async def main() -> None:
     self_model = SelfModel()
     belief_system = BeliefSystem()
     crisis_engine = CrisisEngine()
+    goal_system = GoalSystem()
     self_observer = SelfObserver()
     interface = ARIInterface()
     shutdown_event = asyncio.Event()
 
     try:
         await asyncio.gather(
-            ari_loop_service(mem, self_model, belief_system, crisis_engine, self_observer, interface, shutdown_event),
+            ari_loop_service(mem, self_model, belief_system, crisis_engine, goal_system, self_observer, interface, shutdown_event),
             stdin_bridge(interface, shutdown_event),
         )
     except Exception as exc:

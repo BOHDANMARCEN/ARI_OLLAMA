@@ -117,7 +117,7 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
@@ -134,6 +134,12 @@ class SelfModel:
         if self_observer:
             meta_state = self_observer.get_state()
             meta_beliefs = self_observer.get_top_meta_beliefs(3)
+
+        goal_state = None
+        goal_nodes = []
+        if goal_system:
+            goal_state = goal_system.get_state()
+            goal_nodes = goal_system.get_top_goals(3)
 
         explorer_text = voice_texts.get("Explorer", "")
         critic_text = voice_texts.get("Critic", "")
@@ -265,6 +271,18 @@ class SelfModel:
             })
             links.append({"source": meta_id, "target": "SelfModel", "strength": 0.4})
 
+        for i, goal in enumerate(goal_nodes):
+            goal_id = f"Goal_{i}"
+            goal_text = goal.text if hasattr(goal, 'text') else str(goal)
+            goal_prog = goal.progress if hasattr(goal, 'progress') else 0.0
+            nodes.append({
+                "id": goal_id,
+                "group": "goal",
+                "value": 6 + min(6, goal.priority * 4) if hasattr(goal, 'priority') else 6,
+                "text": f"{goal_text[:35]} ({goal_prog:.0%})",
+            })
+            links.append({"source": "SelfModel", "target": goal_id, "strength": 0.5})
+
         for key, val in self.state_vector.items():
             metric_id = f"Metric_{key}"
             nodes.append({
@@ -286,6 +304,7 @@ class SelfModel:
                 "identity": self.identity_vector,
                 "crisis": crisis_state,
                 "self": meta_state,
+                "goal": goal_state,
             },
         }
 

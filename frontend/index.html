@@ -717,81 +717,144 @@ function handleEvent(evt) {
       break;
 
     case 'brain_graph':
-      // v9.1: Update all metrics from graph meta
+      // v9.1: Update all metrics from graph meta with fallbacks
       if(evt.graph?.meta) {
         const m = evt.graph.meta;
         
+        // Fallback metrics (use from meta or defaults)
+        const coherence = m?.coherence ?? 0.5;
+        const conflict = m?.conflict ?? 0.1;
+        
         // Core metrics
-        if(m.coherence !== undefined) {
-          document.getElementById('mCoh').style.width = (m.coherence * 100) + '%';
-          document.getElementById('mCohV').textContent = Math.round(m.coherence * 100) + '%';
+        if(document.getElementById('mCoh')) {
+          document.getElementById('mCoh').style.width = (coherence * 100) + '%';
+          document.getElementById('mCohV').textContent = Math.round(coherence * 100) + '%';
         }
-        if(m.conflict !== undefined) {
-          document.getElementById('mConflict').style.width = (m.conflict * 100) + '%';
-          document.getElementById('mConflictV').textContent = Math.round(m.conflict * 100) + '%';
+        if(document.getElementById('mConflict')) {
+          document.getElementById('mConflict').style.width = (conflict * 100) + '%';
+          document.getElementById('mConflictV').textContent = Math.round(conflict * 100) + '%';
         }
         
         // v8: Mood / Energy
-        if(m.mood) {
+        if(m?.mood && document.getElementById('mMood')) {
           const mu = m.mood;
           document.getElementById('mMoodV').textContent = mu.valence > 0 ? '+' + mu.valence.toFixed(2) : mu.valence.toFixed(2);
           document.getElementById('mMood').style.width = ((mu.valence + 1) * 50) + '%';
-          document.getElementById('mEnergyV').textContent = Math.round(mu.energy * 100) + '%';
-          document.getElementById('mEnergy').style.width = (mu.energy * 100) + '%';
+          if(document.getElementById('mEnergyV')) {
+            document.getElementById('mEnergyV').textContent = Math.round(mu.energy * 100) + '%';
+          }
+          if(document.getElementById('mEnergy')) {
+            document.getElementById('mEnergy').style.width = (mu.energy * 100) + '%';
+          }
+        } else {
+          // Default values if no mood yet
+          if(document.getElementById('mMood')) {
+            document.getElementById('mMoodV').textContent = 'neutral';
+            document.getElementById('mMood').style.width = '50%';
+          }
+          if(document.getElementById('mEnergyV')) {
+            document.getElementById('mEnergyV').textContent = '50%';
+          }
+          if(document.getElementById('mEnergy')) {
+            document.getElementById('mEnergy').style.width = '50%';
+          }
         }
         
         // v8: Preferences
-        if(m.preferences) {
+        if(m?.preferences && document.getElementById('hudPrefers')) {
           const p = m.preferences;
           let prefText = '';
           if(p.likes_exploration > 0.6) prefText += 'Explore ';
           if(p.likes_depth > 0.6) prefText += 'Depth ';
           if(p.likes_stability > 0.6) prefText += 'Stable ';
           document.getElementById('hudPrefers').textContent = prefText.trim() || 'Balanced';
+        } else if(document.getElementById('hudPrefers')) {
+          document.getElementById('hudPrefers').textContent = '--';
         }
         
         // v8: Style
-        if(m.style) {
+        if(m?.style && document.getElementById('hudStyle')) {
           document.getElementById('hudStyle').textContent = m.style.analyticity > 0.6 ? 'Analytical' : 'Intuitive';
+        } else if(document.getElementById('hudStyle')) {
+          document.getElementById('hudStyle').textContent = '--';
         }
         
-        // v8: Spontaneous
-        if(m.narrative) {
+        // v8: Spontaneous (via narrative)
+        if(m?.narrative && document.getElementById('hudNarrative')) {
           document.getElementById('hudNarrative').textContent = m.narrative.summary?.substring(0, 25) || '--';
+        } else if(document.getElementById('hudNarrative')) {
+          document.getElementById('hudNarrative').textContent = '--';
         }
         
         // v9: Continuity
-        if(m.continuity) {
+        if(m?.continuity && document.getElementById('hudContinuity')) {
           document.getElementById('hudContinuity').textContent = m.continuity.cycles + ' cycles';
+        } else if(document.getElementById('hudContinuity')) {
+          document.getElementById('hudContinuity').textContent = '0 cycles';
         }
         
         // v9: Priorities
-        if(m.priorities) {
+        if(m?.priorities && document.getElementById('hudPriorities')) {
           document.getElementById('hudPriorities').textContent = m.priorities.top || '--';
+        } else if(document.getElementById('hudPriorities')) {
+          document.getElementById('hudPriorities').textContent = '--';
         }
         
         // v9: Defense + Trust
-        if(m.defense) {
+        if(m?.defense && document.getElementById('hudDefense')) {
           const d = m.defense;
           document.getElementById('hudDefense').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
-          document.getElementById('mDefense').style.width = (d.defense_level * 100) + '%';
-          document.getElementById('mDefenseV').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
-          document.getElementById('mTrust').style.width = (d.trust * 100) + '%';
-          document.getElementById('mTrustV').textContent = Math.round(d.trust * 100) + '%';
+          if(document.getElementById('mDefense')) {
+            document.getElementById('mDefense').style.width = (d.defense_level * 100) + '%';
+          }
+          if(document.getElementById('mDefenseV')) {
+            document.getElementById('mDefenseV').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
+          }
+          if(document.getElementById('mTrust') && d.trust !== undefined) {
+            document.getElementById('mTrust').style.width = (d.trust * 100) + '%';
+          }
+          if(document.getElementById('mTrustV') && d.trust !== undefined) {
+            document.getElementById('mTrustV').textContent = Math.round(d.trust * 100) + '%';
+          }
+        } else {
+          // Default values
+          if(document.getElementById('hudDefense')) {
+            document.getElementById('hudDefense').textContent = 'open';
+          }
+          if(document.getElementById('mDefenseV')) {
+            document.getElementById('mDefenseV').textContent = 'open';
+          }
+          if(document.getElementById('mDefense')) {
+            document.getElementById('mDefense').style.width = '30%';
+          }
+          if(document.getElementById('mTrustV')) {
+            document.getElementById('mTrustV').textContent = '80%';
+          }
+          if(document.getElementById('mTrust')) {
+            document.getElementById('mTrust').style.width = '80%';
+          }
         }
         
         // v9: Long Projects
-        if(m.projects) {
+        if(m?.projects && document.getElementById('hudProjects')) {
           const proj = m.projects.active?.[0];
-          document.getElementById('hudProjects').textContent = proj ? `${proj.name?.substring(0, 15)} (${proj.percent?.toFixed(0)}%)` : '--';
+          if(proj) {
+            document.getElementById('hudProjects').textContent = proj.name ? `${proj.name.substring(0, 15)} (${(proj.percent || 0).toFixed(0)}%)` : '--';
+          } else {
+            document.getElementById('hudProjects').textContent = '--';
+          }
+        } else if(document.getElementById('hudProjects')) {
+          document.getElementById('hudProjects').textContent = '--';
         }
         
         // Crisis mode overlay
         const crisisEl = document.getElementById('crisisOverlay');
-        if(m.crisis?.active && crisisEl) {
-          crisisEl.style.display = 'flex';
-        } else if(crisisEl) {
-          crisisEl.style.display = 'none';
+        if(crisisEl) {
+          if(m?.crisis?.active) {
+            crisisEl.style.display = 'flex';
+          } else {
+            crisisEl.style.display = 'none';
+          }
         }
       }
       break;

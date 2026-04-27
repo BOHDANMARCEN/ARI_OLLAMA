@@ -35,6 +35,10 @@ type GraphData = {
       curiosity: number;
       aggression: number;
     };
+    crisis?: {
+      active: boolean;
+      intensity: number;
+    };
   };
 };
 
@@ -47,6 +51,7 @@ const groupColors: Record<string, string> = {
   belief: "#eab308",
   metric: "#ec4899",
   memory: "#ffaa00",
+  conflict: "#ff3333",
 };
 
 const MIN_WIDTH = 260;
@@ -294,6 +299,13 @@ export default function BrainGraph() {
             <div className="hud-item tick">
               <span className="hud-value">#{meta.tick || 0}</span>
             </div>
+            {meta.crisis?.active && (
+              <div className="hud-crisis">
+                <span className="crisis-icon">⚠️</span>
+                <span>CRISIS</span>
+                <span className="crisis-intensity">{(meta.crisis.intensity * 100).toFixed(0)}%</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -325,6 +337,12 @@ export default function BrainGraph() {
           />
         )}
       </div>
+
+      {graphData.meta?.crisis?.active && (
+        <div className="crisis-overlay">
+          <span className="crisis-text">⚠️ CRISIS MODE</span>
+        </div>
+      )}
 
       <div className="graph-legend">
         {Object.entries(groupColors).map(([group, color]) => (

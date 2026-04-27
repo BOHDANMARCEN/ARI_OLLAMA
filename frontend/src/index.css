@@ -636,6 +636,60 @@ textarea {
   margin: 4px 0;
 }
 
+.hud-crisis {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fca5a5;
+  animation: crisis-pulse 1.5s ease-in-out infinite;
+}
+
+.crisis-icon {
+  font-size: 0.8rem;
+}
+
+.crisis-intensity {
+  margin-left: auto;
+  font-family: "SF Mono", "Consolas", monospace;
+}
+
+@keyframes crisis-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.crisis-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(127, 29, 29, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+  animation: crisis-flash 2s ease-in-out infinite;
+}
+
+.crisis-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fca5a5;
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.8);
+  letter-spacing: 2px;
+}
+
+@keyframes crisis-flash {
+  0%, 100% { background: rgba(127, 29, 29, 0.15); }
+  50% { background: rgba(127, 29, 29, 0.35); }
+}
+
 .text-button {
   background: none;
   border: none;

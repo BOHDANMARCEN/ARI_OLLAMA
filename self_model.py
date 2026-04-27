@@ -117,14 +117,17 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
         if belief_system:
+            from crisis_engine import detect_conflicts
             belief_list = belief_system.get_all()
+            conflicts = detect_conflicts(belief_list)
         else:
             belief_list = []
+            conflicts = []
 
         explorer_text = voice_texts.get("Explorer", "")
         critic_text = voice_texts.get("Critic", "")
@@ -223,6 +226,20 @@ class SelfModel:
             })
             links.append({"source": "Identity", "target": belief_id, "strength": 0.2 + belief_strength * 0.3})
 
+        for i, (b1, b2) in enumerate(conflicts[:3]):
+            conflict_id = f"Conflict_{i}"
+            b1_text = getattr(b1, 'text', str(b1))[:25]
+            b2_text = getattr(b2, 'text', str(b2))[:25]
+            nodes.append({
+                "id": conflict_id,
+                "group": "conflict",
+                "value": 7,
+                "text": f"{b1_text} ↔ {b2_text}",
+            })
+            links.append({"source": conflict_id, "target": "Identity", "strength": 0.6})
+
+        crisis_state = crisis_engine.get_state() if crisis_engine else {"active": False, "intensity": 0.0}
+
         for key, val in self.state_vector.items():
             metric_id = f"Metric_{key}"
             nodes.append({
@@ -242,6 +259,7 @@ class SelfModel:
                 "entropy": entropy,
                 "tick": self.tick,
                 "identity": self.identity_vector,
+                "crisis": crisis_state,
             },
         }
 

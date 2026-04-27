@@ -7,6 +7,7 @@ from datetime import datetime
 from anchors import format_anchors, get_anchors
 from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator
 from belief_system import BeliefSystem
+from crisis_engine import CrisisEngine, detect_conflicts, compute_dissonance, crisis_response, update_identity_from_crisis
 from config import CONSOLIDATION_INTERVAL, GOAL_UPDATE_INTERVAL, MEMORY_RESULTS, MODEL, TICK_SECONDS
 from interface import ARIInterface
 from memory import Memory
@@ -61,7 +62,7 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
             emit("error", message=f"Unsupported message type: {msg_type}")
 
 
-async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
+async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
     emit("status", phase="started", model=MODEL, memory_count=mem.count())
 
     while not shutdown_event.is_set():
@@ -138,6 +139,20 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
 
         self_model.update_identity_from_belief_system(belief_system)
 
+        conflicts = detect_conflicts(belief_system.get_all())
+        dissonance = compute_dissonance(conflicts)
+        crisis_state = crisis_engine.update(dissonance)
+        
+        if crisis_state.get("triggered"):
+            removed = crisis_response(belief_system.beliefs, max_remove=1)
+            if removed:
+                emit("crisis", tick=tick, message="Belief removed due to conflict", removed=[getattr(r, 'text', str(r)) for r in removed])
+        
+        if crisis_engine.active:
+            identity = self_model.identity_vector
+            updated_identity = update_identity_from_crisis(identity, crisis_engine.get_state())
+            self_model.identity_vector = updated_identity
+
         emit(
             "brain_snapshot",
             tick=tick,
@@ -145,7 +160,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices, memories, belief_system)
+        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",
@@ -176,12 +191,13 @@ async def main() -> None:
     mem = Memory()
     self_model = SelfModel()
     belief_system = BeliefSystem()
+    crisis_engine = CrisisEngine()
     interface = ARIInterface()
     shutdown_event = asyncio.Event()
 
     try:
         await asyncio.gather(
-            ari_loop_service(mem, self_model, belief_system, interface, shutdown_event),
+            ari_loop_service(mem, self_model, belief_system, crisis_engine, interface, shutdown_event),
             stdin_bridge(interface, shutdown_event),
         )
     except Exception as exc:

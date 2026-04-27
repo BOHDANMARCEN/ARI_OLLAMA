@@ -39,6 +39,16 @@ type GraphData = {
       active: boolean;
       intensity: number;
     };
+    self?: {
+      traits?: {
+        stability: number;
+        coherence: number;
+        conflict_sensitivity: number;
+        curiosity: number;
+      };
+      last_thought: string;
+      meta_beliefs_count: number;
+    };
   };
 };
 
@@ -52,6 +62,7 @@ const groupColors: Record<string, string> = {
   metric: "#ec4899",
   memory: "#ffaa00",
   conflict: "#ff3333",
+  meta: "#00ffff",
 };
 
 const MIN_WIDTH = 260;
@@ -294,6 +305,28 @@ export default function BrainGraph() {
                   <span className="hud-label">aggression</span>
                   <span className="hud-value identity">{meta.identity.aggression?.toFixed(2) || "0.00"}</span>
                 </div>
+              </>
+            )}
+            {meta.self && (
+              <>
+                <div className="hud-divider" />
+                <div className="hud-item meta">
+                  <span className="hud-icon">🧠</span>
+                  <span className="hud-label">self-view</span>
+                  <span className="hud-value meta">{meta.self.last_thought?.substring(0, 25) || "..."}</span>
+                </div>
+                {meta.self.traits && (
+                  <>
+                    <div className="hud-item meta-sub">
+                      <span className="hud-label">coherence</span>
+                      <span className="hud-value meta">{meta.self.traits.coherence?.toFixed(2) || "0.00"}</span>
+                    </div>
+                    <div className="hud-item meta-sub">
+                      <span className="hud-label">sensitivity</span>
+                      <span className="hud-value meta">{meta.self.traits.conflict_sensitivity?.toFixed(2) || "0.00"}</span>
+                    </div>
+                  </>
+                )}
               </>
             )}
             <div className="hud-item tick">

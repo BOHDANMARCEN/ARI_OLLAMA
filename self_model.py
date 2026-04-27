@@ -117,7 +117,7 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
@@ -128,6 +128,12 @@ class SelfModel:
         else:
             belief_list = []
             conflicts = []
+
+        meta_state = None
+        meta_beliefs = []
+        if self_observer:
+            meta_state = self_observer.get_state()
+            meta_beliefs = self_observer.get_top_meta_beliefs(3)
 
         explorer_text = voice_texts.get("Explorer", "")
         critic_text = voice_texts.get("Critic", "")
@@ -240,6 +246,25 @@ class SelfModel:
 
         crisis_state = crisis_engine.get_state() if crisis_engine else {"active": False, "intensity": 0.0}
 
+        nodes.append({
+            "id": "SelfModel",
+            "group": "meta",
+            "value": 16,
+        })
+        links.append({"source": "Identity", "target": "SelfModel", "strength": 0.7})
+
+        for i, mb in enumerate(meta_beliefs):
+            meta_id = f"Meta_{i}"
+            mb_text = mb.text if hasattr(mb, 'text') else str(mb)
+            mb_weight = mb.weight if hasattr(mb, 'weight') else 1.0
+            nodes.append({
+                "id": meta_id,
+                "group": "meta",
+                "value": 4 + min(4, mb_weight * 3),
+                "text": mb_text[:40],
+            })
+            links.append({"source": meta_id, "target": "SelfModel", "strength": 0.4})
+
         for key, val in self.state_vector.items():
             metric_id = f"Metric_{key}"
             nodes.append({
@@ -260,6 +285,7 @@ class SelfModel:
                 "tick": self.tick,
                 "identity": self.identity_vector,
                 "crisis": crisis_state,
+                "self": meta_state,
             },
         }
 

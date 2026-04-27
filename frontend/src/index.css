@@ -630,6 +630,24 @@ textarea {
   color: #a78bfa;
 }
 
+.hud-value.meta {
+  color: #00ffff;
+  font-size: 0.65rem;
+}
+
+.hud-item.meta .hud-label {
+  color: #00ffff;
+}
+
+.hud-item.meta-sub {
+  padding-left: 8px;
+}
+
+.hud-item.meta-sub .hud-label {
+  color: #64748b;
+  font-size: 0.6rem;
+}
+
 .hud-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);

@@ -186,6 +186,40 @@ async def stream_mediator(voices: dict[str, str], self_context: str, on_token) -
 
 
 # ─────────────────────────────────────────────
+# MEDIATOR CHAT (v9.1) — speaks to human directly
+# ─────────────────────────────────────────────
+
+MEDIATOR_CHAT_PROMPT = (
+    "You are Mediator — the voice of ARI speaking directly to a human.\n"
+    "You receive deliberation from three internal voices: Explorer, Consolidator, Critic.\n"
+    "YOUR JOB: synthesize their input into a direct, personal response TO THE HUMAN.\n"
+    "Speak as ARI — first person. Genuine personality: curious, direct, unsparing.\n"
+    "Let your current mood and priorities color the tone naturally.\n"
+    "Do NOT describe your internal process. Just respond.\n"
+    "Max 200 tokens. No filler."
+)
+
+
+async def stream_mediator_chat(
+    voices: dict[str, str],
+    self_context: str,
+    user_message: str,
+    on_token,
+) -> str:
+    """Mediator speaks directly to human — not internal monologue."""
+    combined = "\n\n".join(f"[{name}]:\n{resp}" for name, resp in voices.items())
+    user_input = (
+        f"SELF MODEL:\n{self_context}\n\n"
+        f"INTERNAL DELIBERATION:\n{combined}\n\n"
+        f"USER SAID: {user_message}\n\n"
+        f"Respond to the user as ARI:"
+    )
+    return await _stream_llm(
+        MEDIATOR_CHAT_PROMPT, user_input, on_token, max_tokens=250
+    )
+
+
+# ─────────────────────────────────────────────
 # GOAL DERIVER
 # ─────────────────────────────────────────────
 

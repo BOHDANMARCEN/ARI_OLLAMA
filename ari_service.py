@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 from anchors import format_anchors, get_anchors
-from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator
+from agents import derive_goal, extract_belief, run_all_voices, run_mediator, stream_mediator, stream_mediator_chat
 from belief_system import BeliefSystem
 from crisis_engine import CrisisEngine, detect_conflicts, compute_dissonance, crisis_response, update_identity_from_crisis
 from goal_system import GoalSystem
@@ -112,22 +112,46 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             events_summary = "\n".join(f"  [{e.kind}]: {e.payload}" for e in external_events)
             context += f"EXTERNAL EVENTS THIS TICK:\n{events_summary}\n"
 
-        goal_context = ""
-        meta_context = ""
-        rule_context = ""
+        # v9.1 FIX: Move contexts BEFORE voices so voices see full state
+        goal_context = goal_system.apply_goals_to_context()
+        meta_context = self_observer.get_meta_context()
+        rule_context = str(rule_layer.get_state()) if rule_layer else ""
 
+        # v9.1: Add personality block - voices see mood, continuity, preferences
+        personality = (
+            f"Mood: {mood.get_mood_label()} "
+            f"(valence={mood.valence:.2f}, energy={mood.energy:.2f})\n"
+            f"Continuity: {continuity.get_summary()} | {continuity.get_direction()}\n"
+            f"Prefers: {preferences.get_prefers_label()}\n"
+        )
+        context += f"\nPERSONALITY STATE:\n{personality}\n"
+
+        # v9.1: If human is speaking - mark explicitly
+        user_msg = ""
+        if has_user_input and external_events:
+            user_msg = external_events[0].payload
+            context += (
+                f"\n⚡ HUMAN IS SPEAKING TO ARI: \"{user_msg}\"\n"
+                f"Voices: deliberate on this. Mediator: respond directly.\n"
+            )
+
+        # Now voices have full context
         voices = await run_all_voices(context, meta_context, goal_context, rule_context)
         
         for name, resp in voices.items():
             emit("voice", tick=tick, name=name, text=resp)
 
+        # v9.1 FIX: Use chat mediator when human is present
         if has_user_input and response_session_id:
             emit("response_start", tick=tick, session_id=response_session_id)
 
             async def on_token(token: str) -> None:
                 emit("response_token", tick=tick, session_id=response_session_id, token=token)
 
-            synthesis = await stream_mediator(voices, self_model.to_context(), on_token)
+            # Use chat mediator - speaks TO human, not internal monologue
+            synthesis = await stream_mediator_chat(
+                voices, self_model.to_context(), user_msg, on_token
+            )
             emit("response_end", tick=tick, session_id=response_session_id)
         else:
             synthesis = await run_mediator(voices, self_model.to_context())
@@ -275,9 +299,6 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
                     rule_state = rule_layer.get_state()
                 except Exception as e:
                     emit("error", message=f"Inquiry failed: {e}")
-
-        goal_context = goal_system.apply_goals_to_context()
-        meta_context = self_observer.get_meta_context()
 
         emit(
             "brain_snapshot",

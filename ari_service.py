@@ -115,24 +115,28 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
         # v9.1 FIX: Move contexts BEFORE voices so voices see full state
         goal_context = goal_system.apply_goals_to_context()
         meta_context = self_observer.get_meta_context()
-        rule_context = str(rule_layer.get_state()) if rule_layer else ""
+        rule_state_dict = rule_layer.get_state()
+        rule_context = " | ".join(
+            f"{k}={v:.2f}" for k, v in rule_state_dict["rules"].items()
+        )
 
-        # v9.1: Add personality block - voices see mood, continuity, preferences
+        # v9.1: Personality block — voices see full state
         personality = (
             f"Mood: {mood.get_mood_label()} "
             f"(valence={mood.valence:.2f}, energy={mood.energy:.2f})\n"
             f"Continuity: {continuity.get_summary()} | {continuity.get_direction()}\n"
+            f"Priorities: {priorities.get_influence_text()}\n"
             f"Prefers: {preferences.get_prefers_label()}\n"
         )
         context += f"\nPERSONALITY STATE:\n{personality}\n"
 
-        # v9.1: If human is speaking - mark explicitly
+        # v9.1: Explicit signal to voices that human is present
         user_msg = ""
-        if has_user_input and external_events:
+        if has_user_input:
             user_msg = external_events[0].payload
             context += (
                 f"\n⚡ HUMAN IS SPEAKING TO ARI: \"{user_msg}\"\n"
-                f"Voices: deliberate on this. Mediator: respond directly.\n"
+                f"Deliberate on this. Mediator will synthesize a direct response.\n"
             )
 
         # Now voices have full context

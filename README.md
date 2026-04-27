@@ -545,6 +545,15 @@ Delete old data files:
 
 ## Changelog
 
+### v9.1 (Bug Fix — Real Response Mode)
+- **BUG FIX #1**: Move goal_context/meta_context/rule_context BEFORE voices run
+  - Voices now see full state including goals, meta-observations, rules
+- **BUG FIX #2**: Add personality block — voices see mood, continuity, preferences
+- **NEW**: MEDIATOR_CHAT_PROMPT — speaks TO human directly
+- **NEW**: stream_mediator_chat() — uses chat prompt when human present
+- When human speaks, context explicitly marks: '⚡ HUMAN IS SPEAKING TO ARI'
+- Enhanced UI: defense/trust metrics, crisis overlay, full v9 dashboard
+
 ### v9 (Autonomy)
 - Continuity: System remembers being same self
 - Narrative: Story of self (not just facts)

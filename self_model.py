@@ -117,7 +117,7 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None, rule_layer=None, inquiry_engine=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
@@ -293,6 +293,29 @@ class SelfModel:
             })
             links.append({"source": "Self", "target": metric_id, "strength": 0.3})
 
+        rule_state = None
+        inquiry_state = None
+        if rule_layer:
+            rule_state = rule_layer.get_state()
+            nodes.append({
+                "id": "Rules",
+                "group": "system",
+                "value": 14,
+                "text": f"exp:{rule_layer.get('exploration_weight'):.2f} crit:{rule_layer.get('criticism_weight'):.2f}",
+            })
+            links.append({"source": "SelfModel", "target": "Rules", "strength": 0.6})
+
+        if inquiry_engine:
+            inquiry_state = inquiry_engine.get_state()
+            if inquiry_state.get("last_question"):
+                nodes.append({
+                    "id": "Inquiry",
+                    "group": "meta",
+                    "value": 10,
+                    "text": inquiry_state["last_question"][:40],
+                })
+                links.append({"source": "SelfModel", "target": "Inquiry", "strength": 0.5})
+
         return {
             "nodes": nodes,
             "links": links,
@@ -305,6 +328,8 @@ class SelfModel:
                 "crisis": crisis_state,
                 "self": meta_state,
                 "goal": goal_state,
+                "rules": rule_state,
+                "inquiry": inquiry_state,
             },
         }
 

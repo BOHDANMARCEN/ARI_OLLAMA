@@ -61,6 +61,20 @@ type GraphData = {
       };
       observations?: string[];
     };
+    rules?: {
+      rules: {
+        exploration_weight: number;
+        criticism_weight: number;
+        stability_weight: number;
+        memory_decay: number;
+      };
+      history: Array<any>;
+    };
+    inquiry?: {
+      last_question: string;
+      question_cooldown: number;
+      inquiry_interval: number;
+    };
   };
 };
 
@@ -75,6 +89,7 @@ const groupColors: Record<string, string> = {
   memory: "#ffaa00",
   conflict: "#ff3333",
   meta: "#00ffff",
+  system: "#84cc46",
 };
 
 const MIN_WIDTH = 260;
@@ -354,6 +369,37 @@ export default function BrainGraph() {
                     <div className="progress-bar-fill" style={{ width: `${(meta.goal.active_goal.progress || 0) * 100}%` }} />
                   </div>
                   <span className="progress-val">{Math.round((meta.goal.active_goal.progress || 0) * 100)}%</span>
+                </div>
+              </>
+            )}
+            {meta.rules?.rules && (
+              <>
+                <div className="hud-divider" />
+                <div className="hud-item rules">
+                  <span className="hud-icon">⚙️</span>
+                  <span className="hud-label">rules</span>
+                </div>
+                <div className="hud-item rules-sub">
+                  <span className="hud-label">explore</span>
+                  <span className="hud-value rules">{meta.rules.rules.exploration_weight?.toFixed(2) || "1.00"}</span>
+                </div>
+                <div className="hud-item rules-sub">
+                  <span className="hud-label">critic</span>
+                  <span className="hud-value rules">{meta.rules.rules.criticism_weight?.toFixed(2) || "1.00"}</span>
+                </div>
+                <div className="hud-item rules-sub">
+                  <span className="hud-label">stable</span>
+                  <span className="hud-value rules">{meta.rules.rules.stability_weight?.toFixed(2) || "1.00"}</span>
+                </div>
+              </>
+            )}
+            {meta.inquiry?.last_question && (
+              <>
+                <div className="hud-divider" />
+                <div className="hud-item inquiry">
+                  <span className="hud-icon">❓</span>
+                  <span className="hud-label">inquiry</span>
+                  <span className="hud-value inquiry">{meta.inquiry.last_question?.substring(0, 25) || "..."}</span>
                 </div>
               </>
             )}

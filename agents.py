@@ -148,13 +148,15 @@ async def run_voice(name: str, context: str) -> tuple[str, str]:
     return name, response
 
 
-async def run_all_voices(context: str, meta_context: str = "", goal_context: str = "") -> dict[str, str]:
-    """Запустити всі три голоси паралельно з можливим meta-контекстом і goal-контекстом."""
+async def run_all_voices(context: str, meta_context: str = "", goal_context: str = "", rule_context: str = "") -> dict[str, str]:
+    """Запустити всі три голоси паралельно з контекстом."""
     full_context = context
     if meta_context:
         full_context += f"\n\nSelf-perception:\n{meta_context}"
     if goal_context:
         full_context += f"\n\nGoals:\n{goal_context}"
+    if rule_context:
+        full_context += f"\n\nBehavior modifiers:\n{rule_context}"
     
     tasks = [run_voice(name, full_context) for name in VOICE_PROMPTS]
     results = await asyncio.gather(*tasks)

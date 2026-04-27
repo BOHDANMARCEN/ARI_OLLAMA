@@ -688,6 +688,43 @@ textarea {
   font-family: "SF Mono", "Consolas", monospace;
 }
 
+.hud-item.rules .hud-icon {
+  color: #84cc46;
+}
+
+.hud-item.rules .hud-label {
+  color: #84cc46;
+}
+
+.hud-item.rules-sub {
+  padding-left: 8px;
+}
+
+.hud-item.rules-sub .hud-label {
+  color: #64748b;
+  font-size: 0.6rem;
+  min-width: 45px;
+}
+
+.hud-value.rules {
+  color: #a3e635;
+  font-family: "SF Mono", "Consolas", monospace;
+  font-size: 0.7rem;
+}
+
+.hud-item.inquiry .hud-icon {
+  color: #f472b6;
+}
+
+.hud-item.inquiry .hud-label {
+  color: #f472b6;
+}
+
+.hud-value.inquiry {
+  color: #f9a8d4;
+  font-size: 0.65rem;
+}
+
 .hud-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);

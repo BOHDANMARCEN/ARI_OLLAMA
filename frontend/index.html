@@ -513,6 +513,25 @@
           <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConflict" style="width:10%;background:var(--red)"></div></div>
           <div class="metric-val" id="mConflictV">10%</div>
         </div>
+        <div class="metric-row" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:6px;">
+          <div class="metric-name">mood</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mMood" style="width:50%;background:#ff6b6b"></div></div>
+          <div class="metric-val" id="mMoodV">neutral</div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-name">energy</div>
+          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mEnergy" style="width:50%;background:#22c994"></div></div>
+          <div class="metric-val" id="mEnergyV">50%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: v8 HUD -->
+    <div class="graph-overlay" style="top:44px;bottom:auto;padding:8px 20px;background:rgba(0,0,0,0.4);">
+      <div style="display:flex;gap:16px;font-size:9px;color:var(--text3);">
+        <div>❤️ <span id="hudPrefers">--</span></div>
+        <div>💬 <span id="hudStyle">--</span></div>
+        <div>💭 <span id="hudSpontaneous">--</span></div>
       </div>
     </div>
   </main>
@@ -638,6 +657,29 @@ function handleEvent(evt) {
       updateUI();
       break;
 
+    case 'brain_graph':
+      // Update mood/preferences/style from graph meta
+      if(evt.graph?.meta) {
+        const m = evt.graph.meta;
+        if(m.mood) {
+          const mu = m.mood;
+          document.getElementById('mMoodV').textContent = mu.valence > 0 ? '+' + mu.valence.toFixed(2) : mu.valence.toFixed(2);
+          document.getElementById('mMood').style.width = ((mu.valence + 1) * 50) + '%';
+          document.getElementById('mEnergyV').textContent = Math.round(mu.energy * 100) + '%';
+          document.getElementById('mEnergy').style.width = (mu.energy * 100) + '%';
+        }
+        if(m.preferences) {
+          document.getElementById('hudPrefers').textContent = 
+            (m.preferences.likes_exploration > 0.6 ? 'Explore' : '') +
+            (m.preferences.likes_depth > 0.6 ? 'Depth' : '') +
+            (m.preferences.likes_stability > 0.6 ? 'Stable' : '') || 'Balanced';
+        }
+        if(m.style) {
+          document.getElementById('hudStyle').textContent = m.style.analyticity > 0.6 ? 'Analytical' : 'Intuitive';
+        }
+      }
+      break;
+
     case 'voice':
       addActivity('Voice', evt.text, evt.name);
       break;
@@ -655,6 +697,10 @@ function handleEvent(evt) {
 
     case 'inquiry':
       addActivity('Inquiry', evt.question, '?');
+      break;
+
+    case 'spontaneous':
+      document.getElementById('hudSpontaneous').textContent = evt.topic?.substring(0, 20) || '--';
       break;
 
     case 'error':

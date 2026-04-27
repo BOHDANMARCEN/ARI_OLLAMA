@@ -117,7 +117,7 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None, rule_layer=None, inquiry_engine=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None, rule_layer=None, inquiry_engine=None, mood=None, preferences=None, style_tracker=None, spontaneous=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
@@ -316,6 +316,50 @@ class SelfModel:
                 })
                 links.append({"source": "SelfModel", "target": "Inquiry", "strength": 0.5})
 
+        # v8: Emergence nodes
+        mood_state = None
+        preferences_state = None
+        style_state = None
+
+        if mood:
+            mood_state = mood.get_state()
+            nodes.append({
+                "id": "Mood",
+                "group": "meta",
+                "value": 12,
+                "text": f"mood:{mood.get_mood_label()} energy:{mood.energy:.1f}",
+            })
+            links.append({"source": "SelfModel", "target": "Mood", "strength": 0.6})
+
+        if preferences:
+            preferences_state = preferences.get_state()
+            nodes.append({
+                "id": "Preferences",
+                "group": "system",
+                "value": 10,
+                "text": preferences.get_prefers_label()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Preferences", "strength": 0.5})
+
+        if style_tracker:
+            style_state = style_tracker.get_state()
+            nodes.append({
+                "id": "Style",
+                "group": "thought",
+                "value": 8,
+                "text": style_tracker.get_style_label()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Style", "strength": 0.4})
+
+        if spontaneous and spontaneous.last_topic:
+            nodes.append({
+                "id": "Spontaneous",
+                "group": "thought",
+                "value": 8,
+                "text": spontaneous.last_topic[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Spontaneous", "strength": 0.4})
+
         return {
             "nodes": nodes,
             "links": links,
@@ -330,6 +374,9 @@ class SelfModel:
                 "goal": goal_state,
                 "rules": rule_state,
                 "inquiry": inquiry_state,
+                "mood": mood_state,
+                "preferences": preferences_state,
+                "style": style_state,
             },
         }
 

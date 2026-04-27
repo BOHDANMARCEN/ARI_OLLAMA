@@ -17,6 +17,10 @@ from config import CONSOLIDATION_INTERVAL, GOAL_UPDATE_INTERVAL, MEMORY_RESULTS,
 from interface import ARIInterface
 from memory import Memory
 from self_model import SelfModel
+from mood_layer import Mood
+from preferences import Preferences
+from style_tracker import StyleTracker
+from spontaneous_thought import SpontaneousThought
 
 
 def _configure_stdio() -> None:
@@ -67,7 +71,7 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
             emit("error", message=f"Unsupported message type: {msg_type}")
 
 
-async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, goal_system: GoalSystem, self_observer: SelfObserver, rule_layer: RuleLayer, inquiry_engine: InquiryEngine, interface: ARIInterface, shutdown_event: asyncio.Event) -> None:
+async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, goal_system: GoalSystem, self_observer: SelfObserver, rule_layer: RuleLayer, inquiry_engine: InquiryEngine, interface: ARIInterface, shutdown_event: asyncio.Event, mood: Mood, preferences: Preferences, style_tracker: StyleTracker, spontaneous: SpontaneousThought) -> None:
     emit("status", phase="started", model=MODEL, memory_count=mem.count())
 
     while not shutdown_event.is_set():
@@ -191,6 +195,26 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
         if active_goal:
             emit("goal", tick=tick, text=active_goal.text, progress=active_goal.progress)
 
+        # v8: Emergence - Spontaneous thought (if no user input)
+        spontaneous_topic = ""
+        if not has_user_input and tick >= 3:
+            if spontaneous.should_think(has_user_input, tick):
+                goal_list = [{"text": g.text, "progress": g.progress} for g in goal_system.goals[:3]]
+                belief_list = [{"text": b.text, "strength": getattr(b, 'strength', 0.5)} for b in belief_system.get_all()[:5]]
+                spontaneous_topic = spontaneous.generate(memories, goal_list, belief_list, crisis_engine.active)
+                emit("spontaneous", tick=tick, topic=spontaneous_topic)
+                context += f"\nSPONTANEOUS THOUGHT: {spontaneous_topic}\n"
+
+        # v8: Emergence - Update preferences from synthesis
+        if synthesis:
+            preference_changes = preferences.reinforce(synthesis)
+            style_traits = style_tracker.analyze(synthesis)
+
+        # v8: Emergence - Mood update
+        progress = active_goal.progress if active_goal else 0.0
+        crisis_intensity = crisis_state.get("intensity", 0.0) if crisis_state else 0.0
+        mood.update(crisis_intensity, progress, has_user_input)
+
         # Self-Inquiry: every 5 ticks OR crisis
         rule_state = None
         inquiry_answer = None
@@ -230,7 +254,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer, goal_system, rule_layer, inquiry_engine)
+        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer, goal_system, rule_layer, inquiry_engine, mood, preferences, style_tracker, spontaneous)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",
@@ -266,12 +290,16 @@ async def main() -> None:
     self_observer = SelfObserver()
     rule_layer = RuleLayer()
     inquiry_engine = InquiryEngine()
+    mood = Mood()
+    preferences = Preferences()
+    style_tracker = StyleTracker()
+    spontaneous = SpontaneousThought()
     interface = ARIInterface()
     shutdown_event = asyncio.Event()
 
     try:
         await asyncio.gather(
-            ari_loop_service(mem, self_model, belief_system, crisis_engine, goal_system, self_observer, rule_layer, inquiry_engine, interface, shutdown_event),
+            ari_loop_service(mem, self_model, belief_system, crisis_engine, goal_system, self_observer, rule_layer, inquiry_engine, interface, shutdown_event, mood, preferences, style_tracker, spontaneous),
             stdin_bridge(interface, shutdown_event),
         )
     except Exception as exc:

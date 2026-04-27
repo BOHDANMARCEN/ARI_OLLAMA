@@ -532,6 +532,9 @@
         <div>❤️ <span id="hudPrefers">--</span></div>
         <div>💬 <span id="hudStyle">--</span></div>
         <div>💭 <span id="hudSpontaneous">--</span></div>
+        <div>⏳ <span id="hudContinuity">--</span></div>
+        <div>🎯 <span id="hudPriorities">--</span></div>
+        <div>🛡️ <span id="hudDefense">--</span></div>
       </div>
     </div>
   </main>
@@ -676,6 +679,18 @@ function handleEvent(evt) {
         }
         if(m.style) {
           document.getElementById('hudStyle').textContent = m.style.analyticity > 0.6 ? 'Analytical' : 'Intuitive';
+        }
+        // v9: Continuity
+        if(m.continuity) {
+          document.getElementById('hudContinuity').textContent = m.continuity.cycles + ' cycles';
+        }
+        // v9: Priorities
+        if(m.priorities) {
+          document.getElementById('hudPriorities').textContent = m.priorities.top || '--';
+        }
+        // v9: Defense
+        if(m.defense) {
+          document.getElementById('hudDefense').textContent = m.defense.defense_level > 0.5 ? 'guarded' : 'open';
         }
       }
       break;

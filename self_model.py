@@ -117,7 +117,7 @@ class SelfModel:
         score += 0.2 * min(1.0, len(text) / 200)
         return round(score + 0.2, 3)
 
-    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None, rule_layer=None, inquiry_engine=None, mood=None, preferences=None, style_tracker=None, spontaneous=None) -> dict:
+    def export_graph_state(self, voices: dict[str, str] | None = None, memories: list[dict] | None = None, belief_system=None, crisis_engine=None, self_observer=None, goal_system=None, rule_layer=None, inquiry_engine=None, mood=None, preferences=None, style_tracker=None, spontaneous=None, continuity=None, narrative=None, priorities=None, defense=None, long_projects=None) -> dict:
         """Export brain state for force graph visualization with live metrics."""
         voice_texts = voices or {}
 
@@ -360,6 +360,63 @@ class SelfModel:
             })
             links.append({"source": "SelfModel", "target": "Spontaneous", "strength": 0.4})
 
+        # v9: Autonomy nodes
+        continuity_state = None
+        narrative_state = None
+        priorities_state = None
+        defense_state = None
+        projects_state = None
+
+        if continuity:
+            continuity_state = continuity.get_state()
+            nodes.append({
+                "id": "Continuity",
+                "group": "meta",
+                "value": 10,
+                "text": continuity.get_summary()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Continuity", "strength": 0.5})
+
+        if narrative:
+            narrative_state = narrative.get_state()
+            nodes.append({
+                "id": "Narrative",
+                "group": "memory",
+                "value": 8,
+                "text": narrative.get_narrative_summary()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Narrative", "strength": 0.4})
+
+        if priorities:
+            priorities_state = priorities.get_state()
+            nodes.append({
+                "id": "Priorities",
+                "group": "identity",
+                "value": 10,
+                "text": priorities.get_influence_text()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "Priorities", "strength": 0.6})
+
+        if defense:
+            defense_state = defense.get_state()
+            nodes.append({
+                "id": "Defense",
+                "group": "system",
+                "value": 8,
+                "text": defense.get_defense_status()[:20],
+            })
+            links.append({"source": "SelfModel", "target": "Defense", "strength": 0.4})
+
+        if long_projects:
+            projects_state = long_projects.get_state()
+            nodes.append({
+                "id": "LongProjects",
+                "group": "goal",
+                "value": 8,
+                "text": long_projects.get_summary()[:35],
+            })
+            links.append({"source": "SelfModel", "target": "LongProjects", "strength": 0.4})
+
         return {
             "nodes": nodes,
             "links": links,
@@ -377,6 +434,11 @@ class SelfModel:
                 "mood": mood_state,
                 "preferences": preferences_state,
                 "style": style_state,
+                "continuity": continuity_state,
+                "narrative": narrative_state,
+                "priorities": priorities_state,
+                "defense": defense_state,
+                "projects": projects_state,
             },
         }
 

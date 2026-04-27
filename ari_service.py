@@ -21,6 +21,11 @@ from mood_layer import Mood
 from preferences import Preferences
 from style_tracker import StyleTracker
 from spontaneous_thought import SpontaneousThought
+from continuity_engine import ContinuityEngine
+from narrative_memory import NarrativeMemory
+from self_priorities import SelfPriorities
+from identity_defense import IdentityDefense
+from long_projects import LongProjects
 
 
 def _configure_stdio() -> None:
@@ -71,7 +76,7 @@ async def stdin_bridge(interface: ARIInterface, shutdown_event: asyncio.Event) -
             emit("error", message=f"Unsupported message type: {msg_type}")
 
 
-async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, goal_system: GoalSystem, self_observer: SelfObserver, rule_layer: RuleLayer, inquiry_engine: InquiryEngine, interface: ARIInterface, shutdown_event: asyncio.Event, mood: Mood, preferences: Preferences, style_tracker: StyleTracker, spontaneous: SpontaneousThought) -> None:
+async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: BeliefSystem, crisis_engine: CrisisEngine, goal_system: GoalSystem, self_observer: SelfObserver, rule_layer: RuleLayer, inquiry_engine: InquiryEngine, interface: ARIInterface, shutdown_event: asyncio.Event, mood: Mood, preferences: Preferences, style_tracker: StyleTracker, spontaneous: SpontaneousThought, continuity: ContinuityEngine, narrative: NarrativeMemory, priorities: SelfPriorities, defense: IdentityDefense, long_projects: LongProjects) -> None:
     emit("status", phase="started", model=MODEL, memory_count=mem.count())
 
     while not shutdown_event.is_set():
@@ -215,6 +220,33 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
         crisis_intensity = crisis_state.get("intensity", 0.0) if crisis_state else 0.0
         mood.update(crisis_intensity, progress, has_user_input)
 
+        # v9: Continuity - record self across time
+        continuity.record(
+            self_model.identity_vector,
+            mood.valence,
+            active_goal.text if active_goal else None,
+            synthesis,
+        )
+
+        # v9: Narrative memory - add story events
+        if crisis_engine.active:
+            narrative.add_crisis_resolution("internal conflict resolved")
+        elif tick % 20 == 0:
+            narrative.add_event("checkpoint", f"tick {tick}: ongoing", 0.5)
+
+        # v9: Identity defense - assess threats
+        if synthesis:
+            threat_result = defense.assess_threat(synthesis, self_model.identity_vector)
+            if threat_result.get("threat"):
+                defense_result = defense.defend(True)
+                emit("defense", tick=tick, level=defense_result.get("magnitude", 0))
+            else:
+                defense.relax()
+
+        # v9: Long projects - update progress
+        if synthesis:
+            long_projects.update_all(synthesis)
+
         # Self-Inquiry: every 5 ticks OR crisis
         rule_state = None
         inquiry_answer = None
@@ -254,7 +286,7 @@ async def ari_loop_service(mem: Memory, self_model: SelfModel, belief_system: Be
             voices=voices,
         )
 
-        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer, goal_system, rule_layer, inquiry_engine, mood, preferences, style_tracker, spontaneous)
+        graph_state = self_model.export_graph_state(voices, memories, belief_system, crisis_engine, self_observer, goal_system, rule_layer, inquiry_engine, mood, preferences, style_tracker, spontaneous, continuity, narrative, priorities, defense, long_projects)
         emit("brain_graph", tick=tick, graph=graph_state)
         emit(
             "memory_snapshot",
@@ -294,12 +326,17 @@ async def main() -> None:
     preferences = Preferences()
     style_tracker = StyleTracker()
     spontaneous = SpontaneousThought()
+    continuity = ContinuityEngine()
+    narrative = NarrativeMemory()
+    priorities = SelfPriorities()
+    defense = IdentityDefense()
+    long_projects = LongProjects()
     interface = ARIInterface()
     shutdown_event = asyncio.Event()
 
     try:
         await asyncio.gather(
-            ari_loop_service(mem, self_model, belief_system, crisis_engine, goal_system, self_observer, rule_layer, inquiry_engine, interface, shutdown_event, mood, preferences, style_tracker, spontaneous),
+            ari_loop_service(mem, self_model, belief_system, crisis_engine, goal_system, self_observer, rule_layer, inquiry_engine, interface, shutdown_event, mood, preferences, style_tracker, spontaneous, continuity, narrative, priorities, defense, long_projects),
             stdin_bridge(interface, shutdown_event),
         )
     except Exception as exc:

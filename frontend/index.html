@@ -1,648 +1,334 @@
-<!doctype html>
-<html lang="uk">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ARI Console</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    
     :root {
-      --bg:       #0a0b0d;
-      --bg1:      #0f1012;
-      --bg2:      #141518;
-      --bg3:      #1a1b1f;
-      --border:   rgba(255,255,255,0.06);
-      --border2:  rgba(255,255,255,0.1);
-      --text:     #e8e6e0;
-      --text2:    #888580;
-      --text3:    #4a4845;
-      --amber:    #c8851a;
-      --amber2:   #f5a623;
-      --teal:     #1a9e75;
-      --teal2:    #22c994;
-      --blue:     #2979b8;
-      --red:      #b83c2a;
-      --purple:   #7c5cbf;
-      --mono: 'JetBrains Mono', monospace;
-      --sans: 'Syne', sans-serif;
+      --bg: #0d0d0d;
+      --surface: #1a1a1a;
+      --surface2: #252525;
+      --border: #333;
+      --accent: #f97316;
+      --text: #e0e0e0;
+      --text2: #888;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --purple: #a855f7;
+      --blue: #3b82f6;
+      --teal: #14b8a6;
+      --mono: 'Consolas', 'Monaco', monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
-
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); overflow: hidden; }
-
-    .shell {
-      display: grid;
-      grid-template-columns: 160px 1fr 300px;
-      grid-template-rows: 44px 1fr;
-      grid-template-areas:
-        "topbar topbar topbar"
-        "sidebar graph chat";
-      height: 100vh;
+    
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+    
+    .app { display: grid; grid-template-columns: 280px 1fr 300px; height: 100vh; }
+    
+    /* LEFT PANEL */
+    .left-panel { background: var(--surface); border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+    
+    .status-box { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--surface2); border-radius: 6px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+    .status-dot.connected { background: var(--green); }
+    .status-text { font-size: 12px; color: var(--text2); }
+    
+    .model-info { font-size: 13px; color: var(--text); }
+    .model-info span { color: var(--accent); }
+    
+    .tick-counter { font-family: var(--mono); font-size: 24px; font-weight: bold; color: var(--accent); }
+    .tick-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+    
+    .section-title { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-top: 16px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    
+    .metric-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .metric-label { width: 70px; font-size: 11px; color: var(--text2); }
+    .metric-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .metric-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+    .metric-val { width: 35px; font-size: 10px; color: var(--text2); text-align: right; font-family: var(--mono); }
+    
+    .mood-row { display: flex; gap: 16px; margin-top: 8px; }
+    .mood-item { font-size: 12px; }
+    .mood-item span { color: var(--accent); font-family: var(--mono); }
+    
+    .priority-badge { display: inline-block; padding: 4px 8px; background: var(--purple); color: white; font-size: 11px; border-radius: 4px; margin-top: 8px; }
+    
+    .goal-box { background: var(--surface2); padding: 10px; border-radius: 6px; margin-top: 8px; }
+    .goal-text { font-size: 12px; color: var(--text); margin-bottom: 6px; }
+    .goal-bar { height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+    .goal-bar-fill { height: 100%; background: var(--green); transition: width 0.3s; }
+    
+    .defense-row { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; }
+    .memory-count { font-family: var(--mono); color: var(--teal); }
+    
+    /* CENTER PANEL */
+    .center-panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+    
+    .tab-bar { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .tab-btn { flex: 1; padding: 12px; background: none; border: none; color: var(--text2); font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover { color: var(--text); }
+    
+    .tab-content { flex: 1; display: none; overflow: hidden; }
+    .tab-content.active { display: flex; flex-direction: column; }
+    
+    /* CHAT TAB */
+    .chat-header { display: flex; gap: 8px; padding: 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .session-select { flex: 1; padding: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 12px; }
+    .new-session-btn { padding: 8px 12px; background: var(--accent); border: none; color: white; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    .new-session-btn:hover { opacity: 0.9; }
+    
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .message { display: flex; max-width: 80%; }
+    .message.user { align-self: flex-end; }
+    .message.ari { align-self: flex-start; }
+    .message-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+    .message.user .message-bubble { background: var(--accent); color: white; border-bottom-right-radius: 2px; }
+    .message.ari .message-bubble { background: var(--surface2); color: var(--text); border-bottom-left-radius: 2px; }
+    
+    .typing-indicator { display: none; padding: 8px 12px; background: var(--surface2); border-radius: 12px; width: fit-content; }
+    .typing-indicator.show { display: flex; gap: 4px; }
+    .typing-dot { width: 6px; height: 6px; background: var(--text2); border-radius: 50%; animation: bounce 1.4s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    
+    .chat-input-area { display: flex; gap: 8px; padding: 12px; background: var(--surface); border-top: 1px solid var(--border); }
+    .chat-input { flex: 1; padding: 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-size: 13px; resize: none; min-height: 44px; max-height: 100px; }
+    .chat-input:focus { outline: none; border-color: var(--accent); }
+    .chat-input::placeholder { color: var(--text2); }
+    .chat-send-btn { padding: 0 16px; background: var(--accent); border: none; color: white; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    .chat-send-btn:hover { opacity: 0.9; }
+    .chat-send-btn:disabled { background: var(--text2); cursor: not-allowed; }
+    
+    /* BRAIN GRAPH TAB */
+    .graph-container { flex: 1; position: relative; background: var(--bg); }
+    .graph-svg { width: 100%; height: 100%; }
+    .graph-tooltip { position: absolute; background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 11px; pointer-events: none; display: none; z-index: 100; }
+    
+    /* RIGHT PANEL */
+    .right-panel { display: flex; flex-direction: column; background: var(--surface); }
+    
+    .voices-section { flex: 1; display: flex; flex-direction: column; padding: 12px; border-bottom: 1px solid var(--border); overflow: hidden; }
+    .section-header { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    
+    .voice-card { background: var(--surface2); border-radius: 6px; padding: 10px; margin-bottom: 8px; border-left: 3px solid var(--border); }
+    .voice-card.explorer { border-left-color: var(--teal); }
+    .voice-card.consolidator { border-left-color: var(--blue); }
+    .voice-card.critic { border-left-color: var(--red); }
+    .voice-name { font-size: 10px; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
+    .voice-text { font-size: 11px; color: var(--text); line-height: 1.4; font-family: var(--mono); }
+    
+    .events-section { flex: 1; display: flex; flex-direction: column; padding: 12px; overflow: hidden; }
+    .events-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .clear-btn { font-size: 10px; color: var(--text2); background: none; border: none; cursor: pointer; }
+    .clear-btn:hover { color: var(--text); }
+    .events-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+    
+    .event { font-size: 10px; font-family: var(--mono); padding: 4px 6px; border-radius: 3px; background: var(--surface2); }
+    .event.belief { border-left: 2px solid var(--yellow); }
+    .event.crisis { border-left: 2px solid var(--red); background: rgba(239,68,68,0.1); }
+    .event.inquiry { border-left: 2px solid var(--purple); }
+    .event.spontaneous { border-left: 2px solid var(--blue); }
+    .event.defense { border-left: 2px solid var(--accent); }
+    .event.goal { border-left: 2px solid var(--green); }
+    .event.error { border-left: 2px solid var(--red); font-weight: bold; }
+    .event.voice { border-left: 2px solid var(--teal); }
+    
+    .event-tick { color: var(--text2); margin-right: 6px; }
+    .event-type { color: var(--text2); margin-right: 6px; }
+    
+    /* CRISIS OVERLAY */
+    .crisis-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(239,68,68,0.95); padding: 20px 40px; border-radius: 8px; z-index: 1000; display: none; animation: pulse 1s infinite; }
+    .crisis-overlay.show { display: block; }
+    .crisis-text { color: white; font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    
+    /* RESPONSIVE */
+    @media (max-width: 1200px) {
+      .app { grid-template-columns: 200px 1fr; }
+      .right-panel { display: none; }
     }
-
-    .topbar {
-      grid-area: topbar;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 0 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg1);
-      z-index: 10;
-    }
-
-    .logo {
-      font-family: var(--sans);
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      color: var(--text);
-    }
-    .logo em { color: var(--amber); font-style: normal; }
-
-    .status-pill {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 10px;
-      color: var(--text2);
-      padding: 3px 8px;
-      border: 1px solid var(--border2);
-      border-radius: 20px;
-    }
-    .status-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--teal2);
-      animation: blink 2.4s ease-in-out infinite;
-    }
-    @keyframes blink { 0%,100%{opacity:1} 55%{opacity:0.2} }
-
-    .topbar-stat {
-      font-size: 10px;
-      color: var(--text3);
-      display: flex; align-items: center; gap: 4px;
-    }
-    .topbar-stat strong { color: var(--text2); font-weight: 400; }
-
-    .topbar-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
-
-    .sidebar {
-      grid-area: sidebar;
-      border-right: 1px solid var(--border);
-      background: var(--bg1);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .sidebar-section {
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .section-label {
-      font-size: 9px;
-      color: var(--text3);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .model-select {
-      width: 100%;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-family: var(--mono);
-      font-size: 10px;
-      padding: 5px 8px;
-      border-radius: 4px;
-      outline: none;
-      cursor: pointer;
-    }
-    .model-select:focus { border-color: var(--amber); }
-
-    .btn-switch {
-      width: 100%;
-      margin-top: 6px;
-      padding: 5px;
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-family: var(--mono);
-      font-size: 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-switch:hover { border-color: var(--amber); color: var(--amber); }
-    .btn-switch:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .new-chat-btn {
-      width: calc(100% - 24px);
-      margin: 10px 12px;
-      padding: 7px;
-      background: var(--amber);
-      border: none;
-      color: #0a0b0d;
-      font-family: var(--mono);
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.06em;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .new-chat-btn:hover { background: var(--amber2); }
-
-    .history-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
-    .history-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-bottom: 2px;
-      transition: background 0.1s;
-    }
-    .history-item:hover { background: var(--bg3); }
-    .history-item.active { background: var(--bg3); border-left: 2px solid var(--amber); padding-left: 6px; }
-    .history-title { font-size: 10px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-    .history-date { font-size: 9px; color: var(--text3); }
-    .history-del { font-size: 10px; color: var(--text3); cursor: pointer; padding: 0 2px; flex-shrink: 0; }
-    .history-del:hover { color: var(--red); }
-
-    .runtime-info {
-      padding: 8px 12px;
-      border-top: 1px solid var(--border);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4px;
-    }
-    .ri-item { font-size: 9px; color: var(--text3); }
-    .ri-item strong { color: var(--text2); font-weight: 400; display: block; font-size: 11px; }
-
-    .graph-area {
-      grid-area: graph;
-      position: relative;
-      background: var(--bg);
-      overflow: hidden;
-    }
-
-    .graph-area canvas,
-    .graph-area svg#brain { position: absolute; inset: 0; width: 100%; height: 100%; }
-
-    .graph-overlay {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      padding: 16px 20px;
-      pointer-events: none;
-    }
-
-    .graph-legend {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      pointer-events: auto;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 9px;
-      color: var(--text3);
-    }
-    .legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
-    .graph-metrics {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 6px;
-      pointer-events: auto;
-    }
-    .metric-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .metric-name { font-size: 9px; color: var(--text3); width: 70px; text-align: right; }
-    .metric-bar-wrap { width: 100px; height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; }
-    .metric-bar-fill { height: 100%; border-radius: 2px; background: var(--amber); transition: width 1.2s ease; }
-    .metric-val { font-size: 9px; color: var(--text2); width: 28px; text-align: right; }
-
-    .graph-topbar {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 20px;
-      pointer-events: none;
-    }
-    .graph-title {
-      font-family: var(--sans);
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text3);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    .tick-badge {
-      font-size: 11px;
-      color: var(--amber);
-      background: rgba(200,133,26,0.08);
-      border: 1px solid rgba(200,133,26,0.2);
-      padding: 3px 10px;
-      border-radius: 20px;
-    }
-
-    .chat-panel {
-      grid-area: chat;
-      border-left: 1px solid var(--border);
-      background: var(--bg1);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .chat-header {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-    .chat-header-title {
-      font-size: 10px;
-      color: var(--text3);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .chat-model-badge {
-      font-size: 9px;
-      color: var(--teal);
-      background: rgba(26,158,117,0.08);
-      border: 1px solid rgba(26,158,117,0.15);
-      padding: 2px 7px;
-      border-radius: 3px;
-    }
-
-    .ari-state-bar {
-      padding: 8px 14px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .state-goal {
-      font-size: 10px;
-      color: var(--amber);
-      margin-bottom: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .state-text {
-      font-size: 10px;
-      color: var(--text2);
-      line-height: 1.5;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .chat-messages::-webkit-scrollbar { width: 3px; }
-    .chat-messages::-webkit-scrollbar-track { background: transparent; }
-    .chat-messages::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
-
-    .msg-wrap { display: flex; flex-direction: column; gap: 3px; }
-    .msg-meta {
-      font-size: 9px;
-      color: var(--text3);
-      letter-spacing: 0.05em;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .msg-meta .tick_tag {
-      color: var(--amber);
-      background: rgba(200,133,26,0.06);
-      padding: 0 4px;
-      border-radius: 2px;
-    }
-
-    .msg-bubble {
-      padding: 8px 11px;
-      border-radius: 6px;
-      font-size: 11px;
-      line-height: 1.65;
-      max-width: 100%;
-    }
-    .msg-user .msg-bubble {
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      color: var(--text);
-      align-self: flex-end;
-    }
-    .msg-ari .msg-bubble {
-      background: transparent;
-      border-left: 2px solid var(--amber);
-      border-radius: 0 4px 4px 0;
-      color: var(--text2);
-      padding-left: 10px;
-    }
-    .msg-user { align-items: flex-end; }
-    .msg-ari  { align-items: flex-start; }
-
-    .chat-input-wrap {
-      padding: 10px 14px;
-      border-top: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .chat-input-row {
-      display: flex;
-      gap: 6px;
-    }
-    .chat-input {
-      flex: 1;
-      background: var(--bg3);
-      border: 1px solid var(--border2);
-      border-radius: 4px;
-      padding: 7px 10px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text);
-      outline: none;
-      resize: none;
-      line-height: 1.4;
-      transition: border-color 0.15s;
-    }
-    .chat-input:focus { border-color: var(--amber); }
-    .chat-input::placeholder { color: var(--text3); }
-    .chat-send-btn {
-      padding: 0 12px;
-      background: var(--amber);
-      border: none;
-      border-radius: 4px;
-      color: #0a0b0d;
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 500;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.15s;
-    }
-    .chat-send-btn:hover { background: var(--amber2); }
-
-    .graph-grid {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-    }
-
-    * { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
-
-    .empty-state { text-align: center; padding: 20px; color: var(--text3); font-size: 10px; }
-
-    /* Crisis Overlay */
-    .crisis-overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(184, 60, 42, 0.9);
-      border: 2px solid #ff4444;
-      border-radius: 8px;
-      padding: 16px 32px;
-      z-index: 100;
-      animation: pulse-crisis 1s ease-in-out infinite;
-    }
-    .crisis-text {
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-    }
-    @keyframes pulse-crisis {
-      0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-      50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.02); }
+    @media (max-width: 800px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .left-panel { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; }
+      .status-box, .model-info, .tick-counter { flex: 1; min-width: 120px; }
+      .metrics-section { display: none; }
     }
   </style>
 </head>
 <body>
 
-<div class="shell">
-
-  <!-- TOPBAR -->
-  <header class="topbar">
-    <div class="logo">A<em>R</em>I</div>
-    <div class="status-pill"><div class="status-dot"></div><span id="statusLabel">connecting</span></div>
-    <div class="topbar-stat">tick <strong id="topTick">0</strong></div>
-    <div class="topbar-stat">uptime <strong id="topUptime">00:00:00</strong></div>
-    <div class="topbar-stat">cpu <strong id="topCpu">--</strong></div>
-    <div class="topbar-stat">ram <strong id="topRam">--</strong></div>
-    <div class="topbar-right">
-      <div class="topbar-stat">mem records <strong id="topMem">0</strong></div>
+<div class="app">
+  <!-- LEFT PANEL -->
+  <aside class="left-panel">
+    <div class="status-box">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Disconnected</span>
     </div>
-  </header>
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-section">
-      <div class="section-label">model</div>
-      <select class="model-select" id="modelSelect">
-        <option value="">Loading...</option>
-      </select>
-      <button class="btn-switch" id="switchBtn">switch model</button>
+    
+    <div class="model-info">
+      Model: <span id="modelName">--</span>
     </div>
-
-    <button class="new-chat-btn" id="newChatBtn">+ new chat</button>
-
-    <div class="sidebar-section" style="padding-bottom:6px;">
-      <div class="section-label">history</div>
+    
+    <div>
+      <div class="tick-label">Tick</div>
+      <div class="tick-counter" id="tickCounter">0</div>
     </div>
-    <div class="history-list" id="historyList">
-      <div class="empty-state">No history</div>
+    
+    <div class="section-title">Metrics</div>
+    <div class="metrics-section">
+      <div class="metric-row">
+        <span class="metric-label">Stability</span>
+        <div class="metric-bar"><div class="metric-fill" id="mStability" style="width:50%"></div></div>
+        <span class="metric-val" id="mStabilityVal">50%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Novelty</span>
+        <div class="metric-bar"><div class="metric-fill" id="mNovelty" style="width:50%;background:var(--teal)"></div></div>
+        <span class="metric-val" id="mNoveltyVal">50%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Confidence</span>
+        <div class="metric-bar"><div class="metric-fill" id="mConfidence" style="width:50%;background:var(--blue)"></div></div>
+        <span class="metric-val" id="mConfidenceVal">50%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Coherence</span>
+        <div class="metric-bar"><div class="metric-fill" id="mCoherence" style="width:50%;background:var(--purple)"></div></div>
+        <span class="metric-val" id="mCoherenceVal">50%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Conflict</span>
+        <div class="metric-bar"><div class="metric-fill" id="mConflict" style="width:20%;background:var(--red)"></div></div>
+        <span class="metric-val" id="mConflictVal">20%</span>
+      </div>
     </div>
-
-    <div class="runtime-info">
-      <div class="ri-item">current<strong id="riModel">--</strong></div>
-      <div class="ri-item">tick<strong id="riTick">0</strong></div>
+    
+    <div class="section-title">Mood</div>
+    <div class="mood-row">
+      <div class="mood-item">valence: <span id="moodValence">0.00</span></div>
+      <div class="mood-item">energy: <span id="moodEnergy">50%</span></div>
+    </div>
+    
+    <div class="section-title">Priority</div>
+    <div class="priority-badge" id="topPriority">--</div>
+    
+    <div class="section-title">Goal</div>
+    <div class="goal-box">
+      <div class="goal-text" id="goalText">No active goal</div>
+      <div class="goal-bar"><div class="goal-bar-fill" id="goalProgress" style="width:0%"></div></div>
+    </div>
+    
+    <div class="section-title">Defense</div>
+    <div class="defense-row">
+      <span>Defense:</span>
+      <span id="defenseLevel" style="color:var(--green)">open</span>
+    </div>
+    <div class="defense-row">
+      <span>Memory:</span>
+      <span class="memory-count" id="memoryCount">0</span>
     </div>
   </aside>
-
-  <!-- BRAIN GRAPH -->
-  <main class="graph-area" id="graphArea">
-    <div class="graph-grid"></div>
-    <svg id="brain"></svg>
-
-    <div class="graph-topbar">
-      <div class="graph-title">brain graph</div>
-      <div class="tick-badge" id="tickBadge">TICK #0</div>
+  
+  <!-- CENTER PANEL -->
+  <main class="center-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="graph">Brain Graph</button>
     </div>
-
-    <div class="graph-overlay">
-      <div class="graph-legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#c8851a"></div>core / mediator</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#1a9e75"></div>explorer</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#2979b8"></div>consolidator</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#b83c2a"></div>critic</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#7c5cbf"></div>identity</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#4a4845"></div>memory / belief</div>
+    
+    <!-- CHAT TAB -->
+    <div class="tab-content active" id="chatTab">
+      <div class="chat-header">
+        <select class="session-select" id="sessionSelect">
+          <option>Select session...</option>
+        </select>
+        <button class="new-session-btn" id="newSessionBtn">+ New</button>
       </div>
-
-      <div class="graph-metrics">
-        <div class="metric-row">
-          <div class="metric-name">stability</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mStability" style="width:50%"></div></div>
-          <div class="metric-val" id="mStabilityV">50%</div>
-        </div>
-        <div class="metric-row">
-          <div class="metric-name">novelty</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mNovelty" style="width:50%;background:var(--teal)"></div></div>
-          <div class="metric-val" id="mNoveltyV">50%</div>
-        </div>
-        <div class="metric-row">
-          <div class="metric-name">confidence</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConf" style="width:50%;background:var(--blue)"></div></div>
-          <div class="metric-val" id="mConfV">50%</div>
-        </div>
-        <div class="metric-row">
-          <div class="metric-name">coherence</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mCoh" style="width:50%;background:var(--purple)"></div></div>
-          <div class="metric-val" id="mCohV">50%</div>
-        </div>
-        <div class="metric-row">
-          <div class="metric-name">conflict</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mConflict" style="width:10%;background:var(--red)"></div></div>
-          <div class="metric-val" id="mConflictV">10%</div>
-        </div>
-        <div class="metric-row" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:6px;">
-          <div class="metric-name">mood</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mMood" style="width:50%;background:#ff6b6b"></div></div>
-          <div class="metric-val" id="mMoodV">neutral</div>
-        </div>
-<div class="metric-row">
-          <div class="metric-name">energy</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mEnergy" style="width:50%;background:#22c994"></div></div>
-          <div class="metric-val" id="mEnergyV">50%</div>
-        </div>
-        <!-- v9: New metrics -->
-        <div class="metric-row">
-          <div class="metric-name">defense</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mDefense" style="width:30%;background:#84cc46"></div></div>
-          <div class="metric-val" id="mDefenseV">open</div>
-        </div>
-        <div class="metric-row">
-          <div class="metric-name">trust</div>
-          <div class="metric-bar-wrap"><div class="metric-bar-fill" id="mTrust" style="width:80%;background:#3b82f6"></div></div>
-          <div class="metric-val" id="mTrustV">80%</div>
-        </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="typing-indicator" id="typingIndicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
       </div>
-    </div>
-
-    <!-- v9.1: Enhanced HUD -->
-    <div class="graph-overlay" style="top:44px;bottom:auto;padding:10px 20px;background:rgba(0,0,0,0.5);border-bottom:1px solid rgba(255,255,255,0.08);">
-      <div style="display:flex;gap:20px;font-size:9px;color:var(--text3);flex-wrap:wrap;">
-        <div>❤️ <span id="hudPrefers" style="color:var(--text)">--</span></div>
-        <div>💬 <span id="hudStyle" style="color:var(--text)">--</span></div>
-        <div>💭 <span id="hudSpontaneous" style="color:var(--text)">--</span></div>
-        <div>⏳ <span id="hudContinuity" style="color:var(--text)">--</span></div>
-        <div>🎯 <span id="hudPriorities" style="color:var(--amber)">--</span></div>
-        <div>🛡️ <span id="hudDefense" style="color:var(--teal)">--</span></div>
-        <div>📖 <span id="hudNarrative" style="color:var(--purple)">--</span></div>
-        <div>🏗️ <span id="hudProjects" style="color:var(--blue)">--</span></div>
-      </div>
-    </div>
-
-    <!-- Crisis Overlay -->
-    <div id="crisisOverlay" class="crisis-overlay" style="display:none;">
-      <span class="crisis-text">⚠️ CRISIS MODE</span>
-    </div>
-      </div>
-    </div>
-
-    <!-- NEW: v8 HUD -->
-    <div class="graph-overlay" style="top:44px;bottom:auto;padding:8px 20px;background:rgba(0,0,0,0.4);">
-      <div style="display:flex;gap:16px;font-size:9px;color:var(--text3);">
-        <div>❤️ <span id="hudPrefers">--</span></div>
-        <div>💬 <span id="hudStyle">--</span></div>
-        <div>💭 <span id="hudSpontaneous">--</span></div>
-        <div>⏳ <span id="hudContinuity">--</span></div>
-        <div>🎯 <span id="hudPriorities">--</span></div>
-        <div>🛡️ <span id="hudDefense">--</span></div>
-      </div>
-    </div>
-  </main>
-
-  <!-- CHAT -->
-  <aside class="chat-panel">
-    <div class="chat-header">
-      <div class="chat-header-title">conversation</div>
-      <div class="chat-model-badge" id="chatModelBadge">-- · live</div>
-    </div>
-
-    <div class="ari-state-bar">
-      <div class="state-goal" id="stateGoal">Awaiting first tick...</div>
-      <div class="state-text" id="stateText">ARI is initializing. Connect to backend to begin.</div>
-    </div>
-
-    <div class="chat-messages" id="chatMessages"></div>
-
-    <div class="chat-input-wrap">
-      <div class="chat-input-row">
-        <textarea class="chat-input" id="chatInput" rows="2" placeholder="send signal to ari..."></textarea>
+      <div class="chat-input-area">
+        <textarea class="chat-input" id="chatInput" placeholder="Message ARI..." rows="1"></textarea>
         <button class="chat-send-btn" id="sendBtn">↑</button>
       </div>
     </div>
+    
+    <!-- GRAPH TAB -->
+    <div class="tab-content" id="graphTab">
+      <div class="graph-container">
+        <svg class="graph-svg" id="graphSvg"></svg>
+        <div class="graph-tooltip" id="graphTooltip"></div>
+      </div>
+    </div>
+  </main>
+  
+  <!-- RIGHT PANEL -->
+  <aside class="right-panel">
+    <div class="voices-section">
+      <div class="section-header">Voices</div>
+      <div class="voice-card explorer">
+        <div class="voice-name">Explorer</div>
+        <div class="voice-text" id="voiceExplorer">--</div>
+      </div>
+      <div class="voice-card consolidator">
+        <div class="voice-name">Consolidator</div>
+        <div class="voice-text" id="voiceConsolidator">--</div>
+      </div>
+      <div class="voice-card critic">
+        <div class="voice-name">Critic</div>
+        <div class="voice-text" id="voiceCritic">--</div>
+      </div>
+    </div>
+    
+    <div class="events-section">
+      <div class="events-header">
+        <span class="section-header" style="margin:0;border:none;padding:0;">Event Log</span>
+        <button class="clear-btn" id="clearLog">Clear</button>
+      </div>
+      <div class="events-list" id="eventsList"></div>
+    </div>
   </aside>
+</div>
 
+<!-- CRISIS OVERLAY -->
+<div class="crisis-overlay" id="crisisOverlay">
+  <div class="crisis-text">⚠️ CRISIS MODE</div>
 </div>
 
 <script>
-// ── STATE ───────────────────────────────��─��────────────
-let state = {
+// ================== STATE ==================
+const state = {
+  connected: false,
   tick: 0,
-  uptime: 0,
-  memRecords: 0,
   model: '',
-  status: 'connecting',
-  currentSessionId: null,
   sessions: [],
-  brain: null,
-  memory: null
+  currentSessionId: null,
+  currentMessage: null,
+  messages: [],
+  latestVoices: {},
+  graph: null,
+  reconnectAttempts: 0
 };
 
 let ws = null;
-let metrics = { stability: 50, novelty: 50, confidence: 50, coherence: 50, conflict: 10 };
 
-// ── API ──────────────────────────────────────────────
-async function apiGET(path) {
+// ================== API ==================
+async function apiGet(path) {
   const res = await fetch(path);
   return res.json();
 }
 
-async function apiPOST(path, body) {
+async function apiPost(path, body = {}) {
   const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -651,619 +337,418 @@ async function apiPOST(path, body) {
   return res.json();
 }
 
-// ── WEBSOCKET ──────────────────────────────────────
-function connectWS() {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.host;
-  ws = new WebSocket(`${protocol}//${host}/ws`);
-
+// ================== WEBSOCKET ==================
+function connect() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws`);
+  
   ws.onopen = () => {
-    setStatus('running');
+    state.connected = true;
+    state.reconnectAttempts = 0;
+    updateStatus();
+    loadData();
   };
-
+  
+  ws.onclose = () => {
+    state.connected = false;
+    updateStatus();
+    state.reconnectAttempts++;
+    if (state.reconnectAttempts < 10) {
+      setTimeout(connect, 3000);
+    }
+  };
+  
+  ws.onerror = (e) => {
+    console.error('WS error:', e);
+  };
+  
   ws.onmessage = (e) => {
     try {
       const evt = JSON.parse(e.data);
       handleEvent(evt);
-    } catch(err) {
-      console.error('WS parse error:', err);
+    } catch (err) {
+      console.error('Parse error:', err);
     }
   };
-
-  ws.onclose = () => {
-    setStatus('disconnected');
-    setTimeout(connectWS, 2000);
-  };
-
-  ws.onerror = (err) => {
-    console.error('WS error:', err);
-    setStatus('error');
-  };
 }
 
+function send(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+// ================== EVENT HANDLER ==================
 function handleEvent(evt) {
-  console.log('Event:', evt.type);
-
-  switch(evt.type) {
-    case 'status_snapshot':
-      state.model = evt.model;
-      setStatus(evt.state);
-      if(evt.lastTick) state.tick = evt.lastTick;
-      updateUI();
-      break;
-
-    case 'history_snapshot':
-      state.sessions = evt.sessions || [];
-      renderHistory();
-      if(!state.currentSessionId && state.sessions.length > 0) {
-        state.currentSessionId = state.sessions[0].id;
-      }
-      break;
-
-    case 'brain_snapshot':
-      state.brain = evt;
-      updateBrainInfo();
-      break;
-
-    case 'memory_snapshot':
-      state.memory = evt;
-      if(evt.total != null) state.memRecords = evt.total;
-      updateUI();
-      break;
-
+  switch (evt.type) {
     case 'tick_start':
       state.tick = evt.tick;
-      updateUI();
+      document.getElementById('tickCounter').textContent = evt.tick;
       break;
-
-    case 'brain_graph':
-      // v9.1: Update all metrics from graph meta with fallbacks
-      if(evt.graph?.meta) {
-        const m = evt.graph.meta;
-        
-        // Fallback metrics (use from meta or defaults)
-        const coherence = m?.coherence ?? 0.5;
-        const conflict = m?.conflict ?? 0.1;
-        
-        // Core metrics
-        if(document.getElementById('mCoh')) {
-          document.getElementById('mCoh').style.width = (coherence * 100) + '%';
-          document.getElementById('mCohV').textContent = Math.round(coherence * 100) + '%';
-        }
-        if(document.getElementById('mConflict')) {
-          document.getElementById('mConflict').style.width = (conflict * 100) + '%';
-          document.getElementById('mConflictV').textContent = Math.round(conflict * 100) + '%';
-        }
-        
-        // v8: Mood / Energy
-        if(m?.mood && document.getElementById('mMood')) {
-          const mu = m.mood;
-          document.getElementById('mMoodV').textContent = mu.valence > 0 ? '+' + mu.valence.toFixed(2) : mu.valence.toFixed(2);
-          document.getElementById('mMood').style.width = ((mu.valence + 1) * 50) + '%';
-          if(document.getElementById('mEnergyV')) {
-            document.getElementById('mEnergyV').textContent = Math.round(mu.energy * 100) + '%';
-          }
-          if(document.getElementById('mEnergy')) {
-            document.getElementById('mEnergy').style.width = (mu.energy * 100) + '%';
-          }
-        } else {
-          // Default values if no mood yet
-          if(document.getElementById('mMood')) {
-            document.getElementById('mMoodV').textContent = 'neutral';
-            document.getElementById('mMood').style.width = '50%';
-          }
-          if(document.getElementById('mEnergyV')) {
-            document.getElementById('mEnergyV').textContent = '50%';
-          }
-          if(document.getElementById('mEnergy')) {
-            document.getElementById('mEnergy').style.width = '50%';
-          }
-        }
-        
-        // v8: Preferences
-        if(m?.preferences && document.getElementById('hudPrefers')) {
-          const p = m.preferences;
-          let prefText = '';
-          if(p.likes_exploration > 0.6) prefText += 'Explore ';
-          if(p.likes_depth > 0.6) prefText += 'Depth ';
-          if(p.likes_stability > 0.6) prefText += 'Stable ';
-          document.getElementById('hudPrefers').textContent = prefText.trim() || 'Balanced';
-        } else if(document.getElementById('hudPrefers')) {
-          document.getElementById('hudPrefers').textContent = '--';
-        }
-        
-        // v8: Style
-        if(m?.style && document.getElementById('hudStyle')) {
-          document.getElementById('hudStyle').textContent = m.style.analyticity > 0.6 ? 'Analytical' : 'Intuitive';
-        } else if(document.getElementById('hudStyle')) {
-          document.getElementById('hudStyle').textContent = '--';
-        }
-        
-        // v8: Spontaneous (via narrative)
-        if(m?.narrative && document.getElementById('hudNarrative')) {
-          document.getElementById('hudNarrative').textContent = m.narrative.summary?.substring(0, 25) || '--';
-        } else if(document.getElementById('hudNarrative')) {
-          document.getElementById('hudNarrative').textContent = '--';
-        }
-        
-        // v9: Continuity
-        if(m?.continuity && document.getElementById('hudContinuity')) {
-          document.getElementById('hudContinuity').textContent = m.continuity.cycles + ' cycles';
-        } else if(document.getElementById('hudContinuity')) {
-          document.getElementById('hudContinuity').textContent = '0 cycles';
-        }
-        
-        // v9: Priorities
-        if(m?.priorities && document.getElementById('hudPriorities')) {
-          document.getElementById('hudPriorities').textContent = m.priorities.top || '--';
-        } else if(document.getElementById('hudPriorities')) {
-          document.getElementById('hudPriorities').textContent = '--';
-        }
-        
-        // v9: Defense + Trust
-        if(m?.defense && document.getElementById('hudDefense')) {
-          const d = m.defense;
-          document.getElementById('hudDefense').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
-          if(document.getElementById('mDefense')) {
-            document.getElementById('mDefense').style.width = (d.defense_level * 100) + '%';
-          }
-          if(document.getElementById('mDefenseV')) {
-            document.getElementById('mDefenseV').textContent = d.defense_level > 0.5 ? 'guarded' : 'open';
-          }
-          if(document.getElementById('mTrust') && d.trust !== undefined) {
-            document.getElementById('mTrust').style.width = (d.trust * 100) + '%';
-          }
-          if(document.getElementById('mTrustV') && d.trust !== undefined) {
-            document.getElementById('mTrustV').textContent = Math.round(d.trust * 100) + '%';
-          }
-        } else {
-          // Default values
-          if(document.getElementById('hudDefense')) {
-            document.getElementById('hudDefense').textContent = 'open';
-          }
-          if(document.getElementById('mDefenseV')) {
-            document.getElementById('mDefenseV').textContent = 'open';
-          }
-          if(document.getElementById('mDefense')) {
-            document.getElementById('mDefense').style.width = '30%';
-          }
-          if(document.getElementById('mTrustV')) {
-            document.getElementById('mTrustV').textContent = '80%';
-          }
-          if(document.getElementById('mTrust')) {
-            document.getElementById('mTrust').style.width = '80%';
-          }
-        }
-        
-        // v9: Long Projects
-        if(m?.projects && document.getElementById('hudProjects')) {
-          const proj = m.projects.active?.[0];
-          if(proj) {
-            document.getElementById('hudProjects').textContent = proj.name ? `${proj.name.substring(0, 15)} (${(proj.percent || 0).toFixed(0)}%)` : '--';
-          } else {
-            document.getElementById('hudProjects').textContent = '--';
-          }
-        } else if(document.getElementById('hudProjects')) {
-          document.getElementById('hudProjects').textContent = '--';
-        }
-        
-        // Crisis mode overlay
-        const crisisEl = document.getElementById('crisisOverlay');
-        if(crisisEl) {
-          if(m?.crisis?.active) {
-            crisisEl.style.display = 'flex';
-          } else {
-            crisisEl.style.display = 'none';
-          }
-        }
-      }
-      break;
-
+      
     case 'voice':
-      addActivity('Voice', evt.text, evt.name);
+      state.latestVoices[evt.name] = evt.text;
+      updateVoiceCard(evt.name, evt.text);
+      addEvent('voice', `${evt.name}: ${evt.text?.substring(0, 30)}...`);
       break;
-
+      
+    case 'synthesis':
+      addEvent('synthesis', evt.text?.substring(0, 50));
+      break;
+      
     case 'response_start':
-      if(evt.session_id) state.currentSessionId = evt.session_id;
+      state.currentMessage = { role: 'ari', text: '', tick: evt.tick };
+      document.getElementById('typingIndicator').classList.add('show');
       break;
-
+      
     case 'response_token':
-      appendToLastMessage(evt.token);
-      break;
-
-    case 'response_end':
-      break;
-
-case 'inquiry':
-      addActivity('Inquiry', evt.question, '?');
-      break;
-
-    case 'defense':
-      addActivity('Defense', 'level=' + evt.level, '🛡️');
-      break;
-
-    case 'voice':
-      addActivity('Voice', evt.text, evt.name);
-      break;
-
-    case 'spontaneous':
-      document.getElementById('hudSpontaneous').textContent = evt.topic?.substring(0, 20) || '--';
-      break;
-
-    case 'error':
-      addActivity('Error', evt.message, '!');
-      break;
-
-    default:
-      // ignore other events
-  }
-}
-
-// ── UI UPDATES ──────────────────────────────────────
-function setStatus(st) {
-  state.status = st;
-  const labels = { running: 'running', connecting: 'connecting', stopped: 'stopped', error: 'error', disconnected: 'disconnected' };
-  document.getElementById('statusLabel').textContent = labels[st] || st;
-}
-
-function updateUI() {
-  document.getElementById('topTick').textContent = state.tick;
-  document.getElementById('riTick').textContent = state.tick;
-  document.getElementById('tickBadge').textContent = 'TICK #' + state.tick;
-  document.getElementById('topMem').textContent = state.memRecords;
-
-  const short = state.model.length > 13 ? state.model.slice(0, 12) + '…' : state.model;
-  document.getElementById('riModel').textContent = short;
-  document.getElementById('chatModelBadge').textContent = short.split(':')[0] + ' · live';
-}
-
-function updateBrainInfo() {
-  if(!state.brain) return;
-
-  const goal = state.brain.snapshot?.goal;
-  const text = state.brain.snapshot?.state;
-
-  if(goal) document.getElementById('stateGoal').textContent = 'goal: ' + goal.substring(0, 40);
-  if(text) document.getElementById('stateText').textContent = text.substring(0, 100);
-}
-
-function renderHistory() {
-  const el = document.getElementById('historyList');
-  if(state.sessions.length === 0) {
-    el.innerHTML = '<div class="empty-state">No history</div>';
-    return;
-  }
-
-  el.innerHTML = state.sessions.map(s => `
-    <div class="history-item ${s.id === state.currentSessionId ? 'active' : ''}" data-id="${s.id}">
-      <div style="flex:1;overflow:hidden;">
-        <div class="history-title">${s.title || 'New chat'}</div>
-        <div class="history-date">${new Date(s.updatedAt).toLocaleString('uk-UA')}</div>
-      </div>
-      <div class="history-del" data-del="${s.id}">×</div>
-    </div>
-  `).join('');
-
-  // attach click handlers
-  el.querySelectorAll('.history-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-      if(e.target.classList.contains('history-del')) {
-        deleteSession(e.target.dataset.del);
-      } else {
-        state.currentSessionId = item.dataset.id;
-        renderHistory();
+      if (state.currentMessage) {
+        state.currentMessage.text += evt.token || '';
+        updateLastMessage();
       }
-    });
-  });
-}
-
-function addActivity(label, text, icon) {
-  const msgs = document.getElementById('chatMessages');
-  const tick = state.tick;
-  const wrap = document.createElement('div');
-  wrap.className = 'msg-wrap msg-ari';
-  wrap.innerHTML = `
-    <div class="msg-meta">${icon || 'ARI'} · <span class="tick_tag">TICK ${tick}</span></div>
-    <div class="msg-bubble">${escapeHtml(text || '')}</div>
-  `;
-  msgs.appendChild(wrap);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function appendToLastMessage(text) {
-  const msgs = document.getElementById('chatMessages');
-  const last = msgs.lastElementChild;
-  if(last && last.classList.contains('msg-ari')) {
-    const bubble = last.querySelector('.msg-bubble');
-    if(bubble) bubble.textContent += text;
-    msgs.scrollTop = msgs.scrollHeight;
+      break;
+      
+    case 'response_end':
+      if (state.currentMessage) {
+        finalizeMessage();
+        document.getElementById('typingIndicator').classList.remove('show');
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('chatInput').disabled = false;
+      }
+      break;
+      
+    case 'brain_graph':
+      state.graph = evt.graph;
+      renderGraph(evt.graph);
+      if (evt.graph?.meta) updateMetrics(evt.graph.meta);
+      break;
+      
+    case 'brain_snapshot':
+      if (evt.snapshot?.state_vector) updateMetrics(evt.snapshot.state_vector);
+      if (evt.snapshot?.mood) updateMood(evt.snapshot.mood);
+      if (evt.snapshot?.goal) updateGoal(evt.snapshot.goal, evt.snapshot.goal_progress);
+      if (evt.snapshot?.priorities) updatePriority(evt.snapshot.priorities);
+      if (evt.voices) {
+        Object.entries(evt.voices).forEach(([name, text]) => updateVoiceCard(name, text));
+      }
+      break;
+      
+    case 'goal':
+      updateGoal(evt.text, evt.progress);
+      break;
+      
+    case 'belief':
+      addEvent('belief', evt.text?.substring(0, 40));
+      break;
+      
+    case 'crisis':
+      addEvent('crisis', evt.message || 'Conflict detected');
+      document.getElementById('crisisOverlay').classList.add('show');
+      if (evt.removed) addEvent('crisis', `Removed: ${evt.removed.join(', ')}`);
+      break;
+      
+    case 'inquiry':
+      addEvent('inquiry', evt.question?.substring(0, 40));
+      break;
+      
+    case 'spontaneous':
+      addEvent('spontaneous', evt.topic?.substring(0, 40));
+      break;
+      
+    case 'defense':
+      updateDefense(evt.level);
+      addEvent('defense', `Level: ${(evt.level || 0).toFixed(2)}`);
+      break;
+      
+    case 'memory_snapshot':
+      document.getElementById('memoryCount').textContent = evt.total || 0;
+      break;
+      
+    case 'status':
+      state.model = evt.model || state.model;
+      document.getElementById('modelName').textContent = state.model;
+      updateStatus(evt.phase);
+      break;
+      
+    case 'history_snapshot':
+      state.sessions = evt.sessions || [];
+      renderSessions();
+      break;
+      
+    case 'error':
+      addEvent('error', evt.message);
+      break;
   }
 }
 
-function escapeHtml(str) {
+function updateStatus(phase) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  if (state.connected && phase === 'running') {
+    dot.classList.add('connected');
+    text.textContent = 'Connected';
+  } else if (state.connected) {
+    dot.classList.add('connected');
+    text.textContent = 'Idle';
+  } else {
+    dot.classList.remove('connected');
+    text.textContent = 'Disconnected';
+  }
+}
+
+// ================== DATA LOADING ==================
+async function loadData() {
+  try {
+    const status = await apiGet('/api/status');
+    state.model = status.model;
+    state.tick = status.tick || 0;
+    document.getElementById('modelName').textContent = state.model;
+    document.getElementById('tickCounter').textContent = state.tick;
+    updateStatus(status.state);
+    
+    const history = await apiGet('/api/history');
+    state.sessions = history.sessions || [];
+    renderSessions();
+    if (state.sessions.length > 0 && !state.currentSessionId) {
+      selectSession(state.sessions[0].id);
+    }
+  } catch (e) {
+    console.error('Load error:', e);
+  }
+}
+
+// ================== SESSIONS ==================
+function renderSessions() {
+  const select = document.getElementById('sessionSelect');
+  select.innerHTML = state.sessions.length 
+    ? state.sessions.map(s => `<option value="${s.id}" ${s.id === state.currentSessionId ? 'selected' : ''}>${s.title || 'Chat'}</option>`).join('')
+    : '<option>No sessions</option>';
+}
+
+async function selectSession(id) {
+  state.currentSessionId = id;
+  const session = state.sessions.find(s => s.id === id);
+  if (session) {
+    document.getElementById('chatMessages').innerHTML = '';
+    (session.messages || []).forEach(m => {
+      const div = document.createElement('div');
+      div.className = `message ${m.role}`;
+      div.innerHTML = `<div class="message-bubble">${escapeHtml(m.text)}</div>`;
+      document.getElementById('chatMessages').appendChild(div);
+    });
+  }
+}
+
+async function createSession() {
+  try {
+    const data = await apiPost('/api/history/sessions', { title: 'New chat' });
+    state.sessions = data.sessions || state.sessions;
+    state.currentSessionId = data.session?.id;
+    renderSessions();
+  } catch (e) {
+    console.error('Create session error:', e);
+  }
+}
+
+// ================== CHAT ==================
+function escapeHtml(text) {
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = text || '';
   return div.innerHTML;
 }
 
-// ── D3 GRAPH ───────────────────────────────────────
-const nodes = [
-  {id:'core',    label:'Core',        type:'core',    r:22},
-  {id:'med',     label:'Mediator',    type:'core',    r:16},
-  {id:'exp',     label:'Explorer',    type:'explorer',r:14},
-  {id:'con',     label:'Consolidator',type:'consol',  r:14},
-  {id:'crit',    label:'Critic',      type:'critic',  r:14},
-  {id:'ident',   label:'Identity',    type:'identity',r:11},
-  {id:'goal',    label:'Goal',        type:'identity',r:10},
-  {id:'mem1',    label:'memory',      type:'memory',  r:7},
-  {id:'mem2',    label:'belief',      type:'memory',  r:7},
-  {id:'mem3',    label:'synthesis',   type:'memory',  r:6},
-  {id:'mem4',    label:'belief',      type:'memory',  r:6},
-  {id:'mem5',    label:'thought',     type:'memory',  r:5},
-];
-
-const links = [
-  {source:'core',  target:'med'},
-  {source:'med',   target:'exp'},
-  {source:'med',   target:'con'},
-  {source:'med',   target:'crit'},
-  {source:'core',  target:'ident'},
-  {source:'core',  target:'goal'},
-  {source:'exp',   target:'mem5'},
-  {source:'exp',   target:'mem1'},
-  {source:'con',   target:'mem2'},
-  {source:'crit',  target:'mem3'},
-  {source:'ident', target:'mem1'},
-  {source:'goal',  target:'mem2'},
-  {source:'med',   target:'mem3'},
-];
-
-const colorMap = {
-  core:    '#c8851a',
-  explorer:'#1a9e75',
-  consol:  '#2979b8',
-  critic:  '#b83c2a',
-  identity:'#7c5cbf',
-  memory:  '#2c2b28',
-};
-
-const strokeMap = {
-  core:    '#f5a623',
-  explorer:'#22c994',
-  consol:  '#4a9fd4',
-  critic:  '#d4533a',
-  identity:'#9b7ad4',
-  memory:  '#4a4845',
-};
-
-let sim = null;
-
-function initGraph() {
-  const svg = d3.select('#brain');
-  const el = document.getElementById('graphArea');
-  const W = el.clientWidth;
-  const H = el.clientHeight;
-
-  svg.attr('viewBox', `0 0 ${W} ${H}`);
-
-  nodes.forEach(n => {
-    n.x = Math.random() * W;
-    n.y = Math.random() * H;
-  });
-
-  svg.selectAll('*').remove();
-
-  const defs = svg.append('defs');
-  const glow = defs.append('filter').attr('id','glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
-  glow.append('feGaussianBlur').attr('stdDeviation','4').attr('result','blur');
-  const merge = glow.append('feMerge');
-  merge.append('feMergeNode').attr('in','blur');
-  merge.append('feMergeNode').attr('in','SourceGraphic');
-
-  sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d=>d.id).distance(d => 90))
-    .force('charge', d3.forceManyBody().strength(-180))
-    .force('center', d3.forceCenter(W/2, H/2))
-    .force('collision', d3.forceCollide(d=>d.r+12))
-    .alphaDecay(0.012);
-
-  const linkEl = svg.append('g')
-    .selectAll('line')
-    .data(links)
-    .join('line')
-    .attr('stroke', 'rgba(255,255,255,0.06)')
-    .attr('stroke-width', 1);
-
-  const nodeG = svg.append('g')
-    .selectAll('g')
-    .data(nodes)
-    .join('g')
-    .call(d3.drag()
-      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.15).restart(); d.fx=d.x; d.fy=d.y; })
-      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
-      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
-    );
-
-  nodeG.append('circle')
-    .attr('r', d => d.r)
-    .attr('fill', d => colorMap[d.type])
-    .attr('stroke', d => strokeMap[d.type])
-    .attr('stroke-width', d => d.type==='core'?2:1)
-    .attr('filter', d => d.type==='core'?'url(#glow)':null)
-    .attr('opacity', d => d.type==='memory'?0.6:0.9);
-
-  nodeG.append('text')
-    .attr('text-anchor','middle')
-    .attr('dominant-baseline','middle')
-    .attr('fill', d => d.type==='memory'?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.75)')
-    .attr('font-size', d => d.r > 14 ? '9px' : d.r > 8 ? '7.5px' : '7px')
-    .attr('font-family','JetBrains Mono,monospace')
-    .attr('pointer-events','none')
-    .text(d => d.label);
-
-  sim.on('tick', () => {
-    linkEl
-      .attr('x1', d => d.source.x)
-      .attr('y1', d => d.source.y)
-      .attr('x2', d => d.target.x)
-      .attr('y2', d => d.target.y);
-    nodeG.attr('transform', d => `translate(${d.x},${d.y})`);
-  });
-
-  window._simRef = sim;
+function addMessage(msg) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `message ${msg.role}`;
+  div.innerHTML = `<div class="message-bubble">${escapeHtml(msg.text)}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
 }
 
-// ── CLOCK & STATS ────────────────────────────────────
-function pad(n){ return String(n).padStart(2,'0'); }
-
-function fmtTime(s){
-  return pad(Math.floor(s/3600))+':'+pad(Math.floor((s%3600)/60))+':'+pad(s%60);
-}
-
-function updateMetrics(){
-  const keys = ['stability','novelty','confidence','coherence','conflict'];
-  const ids = ['mStability','mNovelty','mConf','mCoh','mConflict'];
-  keys.forEach((k,i) => {
-    const delta = Math.round((Math.random()-0.45)*8);
-    metrics[k] = Math.max(5, Math.min(95, metrics[k]+delta));
-    const el = document.getElementById(ids[i]);
-    const vl = document.getElementById(ids[i]+'V');
-    if(el) el.style.width = metrics[k]+'%';
-    if(vl) vl.textContent = metrics[k]+'%';
-  });
-}
-
-setInterval(()=>{
-  state.uptime++;
-  document.getElementById('topUptime').textContent = fmtTime(state.uptime);
-
-  const cpu = 15+Math.round(Math.random()*55);
-  const ram = 50+Math.round(Math.random()*30);
-  document.getElementById('topCpu').textContent = cpu+'%';
-  document.getElementById('topRam').textContent = ram+'%';
-
-  if(state.uptime % 20 === 0 && sim) {
-    updateMetrics();
-    sim.alphaTarget(0.12).restart();
-    setTimeout(()=>{ if(sim) sim.alphaTarget(0); }, 1200);
+function updateLastMessage() {
+  const container = document.getElementById('chatMessages');
+  const last = container.lastElementChild;
+  if (last && last.classList.contains('message') && last.classList.contains('ari')) {
+    last.querySelector('.message-bubble').textContent = state.currentMessage?.text || '';
   }
-}, 1000);
+  container.scrollTop = container.scrollHeight;
+}
 
-// ── BUTTON HANDLERS ────────────────────────────────
-function sendMessage() {
+function finalizeMessage() {
+  if (state.currentMessage && state.currentMessage.text) {
+    addMessage(state.currentMessage);
+  }
+}
+
+async function sendMessage() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
-  if(!text || !state.currentSessionId) return;
-
+  if (!text || !state.currentSessionId) return;
+  
+  const userMsg = { role: 'user', text };
+  addMessage(userMsg);
   input.value = '';
+  document.getElementById('sendBtn').disabled = true;
+  
+  send({ type: 'user_message', text, session_id: state.currentSessionId });
+}
 
-  // add user message to UI
-  const msgs = document.getElementById('chatMessages');
-  const wrap = document.createElement('div');
-  wrap.className = 'msg-wrap msg-user';
-  wrap.innerHTML = `<div class="msg-meta">you</div><div class="msg-bubble">${escapeHtml(text)}</div>`;
-  msgs.appendChild(wrap);
-  msgs.scrollTop = msgs.scrollHeight;
+// ================== VOICES ==================
+function updateVoiceCard(name, text) {
+  const id = name === 'Explorer' ? 'voiceExplorer' : name === 'Consolidator' ? 'voiceConsolidator' : 'voiceCritic';
+  const el = document.getElementById(id);
+  if (el) el.textContent = text?.substring(0, 100) || '--';
+}
 
-  // send via WebSocket
-  if(ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'user_message', text, sessionId: state.currentSessionId }));
+// ================== METRICS ==================
+function updateMetrics(meta) {
+  const sv = meta || {};
+  const setMetric = (id, val) => {
+    const v = Math.round((val || 0) * 100);
+    const bar = document.getElementById(id);
+    const txt = document.getElementById(id + 'Val');
+    if (bar) bar.style.width = v + '%';
+    if (txt) txt.textContent = v + '%';
+  };
+  setMetric('mStability', sv.stability);
+  setMetric('mNovelty', sv.novelty);
+  setMetric('mConfidence', sv.confidence);
+  setMetric('mCoherence', sv.coherence);
+  setMetric('mConflict', sv.conflict);
+}
+
+function updateMood(mood) {
+  if (mood) {
+    document.getElementById('moodValence').textContent = (mood.valence || 0).toFixed(2);
+    document.getElementById('moodEnergy').textContent = Math.round((mood.energy || 0.5) * 100) + '%';
   }
 }
 
-document.getElementById('sendBtn').addEventListener('click', sendMessage);
-document.getElementById('chatInput').addEventListener('keydown', e=>{
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
-});
-
-async function switchModel() {
-  const sel = document.getElementById('modelSelect');
-  const model = sel.value;
-  if(!model) return;
-
-  const btn = document.getElementById('switchBtn');
-  btn.disabled = true;
-  btn.textContent = 'switching...';
-
-  try {
-    await apiPOST('/api/model', { model });
-    btn.textContent = 'restarting...';
-  } catch(err) {
-    btn.textContent = 'error!';
-    btn.disabled = false;
+function updatePriority(priorities) {
+  if (priorities?.top) {
+    document.getElementById('topPriority').textContent = priorities.top;
   }
 }
 
-document.getElementById('switchBtn').addEventListener('click', switchModel);
-
-async function newChat() {
-  try {
-    const data = await apiPOST('/api/history/sessions', { title: 'New chat' });
-    state.sessions = data.sessions || [];
-    state.currentSessionId = data.session?.id;
-    renderHistory();
-  } catch(err) {
-    console.error('New chat error:', err);
-  }
+function updateGoal(text, progress) {
+  document.getElementById('goalText').textContent = text || 'No active goal';
+  document.getElementById('goalProgress').style.width = Math.round((progress || 0) * 100) + '%';
 }
 
-document.getElementById('newChatBtn').addEventListener('click', newChat);
-
-async function deleteSession(sessionId) {
-  try {
-    await apiPOST('/api/history/sessions/' + sessionId, { _method: 'delete' });
-    if(state.currentSessionId === sessionId) {
-      state.currentSessionId = state.sessions[0]?.id;
-    }
-  } catch(err) {
-    console.error('Delete error:', err);
-  }
-}
-
-document.getElementById('modelSelect').addEventListener('change', function(){
-  const short = this.value.length > 14 ? this.value.slice(0,13)+'…' : this.value;
-  document.getElementById('riModel').textContent = short;
-  document.getElementById('chatModelBadge').textContent = short.split(':')[0]+' · live';
-});
-
-// ── INIT ────────────────────────────────────────
-async function init() {
-  // load models
-  try {
-    const data = await apiGET('/api/models');
-    const sel = document.getElementById('modelSelect');
-    if(data.models && data.models.length > 0) {
-      sel.innerHTML = data.models.map(m =>
-        `<option value="${m.name}" ${m.name === data.currentModel ? 'selected' : ''}>${m.name}</option>`
-      ).join('');
-      state.model = data.currentModel || data.models[0].name;
+function updateDefense(level) {
+  const el = document.getElementById('defenseLevel');
+  if (el) {
+    if (level > 0.5) {
+      el.textContent = 'guarded';
+      el.style.color = 'var(--red)';
     } else {
-      sel.innerHTML = '<option>No models</option>';
+      el.textContent = 'open';
+      el.style.color = 'var(--green)';
     }
-    updateUI();
-  } catch(err) {
-    console.error('Load models error:', err);
   }
-
-  // load history
-  try {
-    const data = await apiGET('/api/history');
-    state.sessions = data.sessions || [];
-    state.currentSessionId = state.sessions[0]?.id;
-    renderHistory();
-  } catch(err) {
-    console.error('Load history error:', err);
-  }
-
-  // init graph
-  initGraph();
-  window.addEventListener('resize', initGraph);
-
-  // connect websocket
-  connectWS();
 }
 
-window.addEventListener('load', init);
-</script>
+// ================== EVENTS ==================
+function addEvent(type, text) {
+  const list = document.getElementById('eventsList');
+  const div = document.createElement('div');
+  div.className = `event ${type}`;
+  div.innerHTML = `<span class="event-tick">[${state.tick}]</span><span class="event-type">${type}:</span>${escapeHtml(text)}`;
+  list.appendChild(div);
+  while (list.children.length > 50) list.removeChild(list.firstChild);
+  list.scrollTop = list.scrollHeight;
+}
+
+// ================== GRAPH ==================
+let graphSim = null;
+
+function renderGraph(data) {
+  if (!data?.nodes?.length) return;
+  
+  const svg = d3.select('#graphSvg');
+  const container = document.getElementById('graphTab');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+  
+  const colorMap = {
+    core: '#c8851a', voice: '#f97316', identity: '#7c5cbf',
+    thought: '#a855f7', goal: '#22c55e', belief: '#eab308',
+    memory: '#4a4845', meta: '#00ffff', system: '#84cc46'
+  };
+  
+  const nodes = data.nodes.map(n => ({ ...n }));
+  const links = data.links || [];
+  
+  svg.selectAll('*').remove();
+  
+  if (!graphSim) {
+    graphSim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+      .force('charge', d3.forceManyBody().strength(-150))
+      .force('center', d3.forceCenter(width/2, height/2))
+      .force('collision', d3.forceCollide(20));
+  } else {
+    graphSim.nodes(nodes);
+    graphSim.force('link').links(links);
+    graphSim.alpha(0.3).restart();
+  }
+  
+  const link = svg.append('g')
+    .selectAll('line').data(links).join('line')
+    .attr('stroke', '#333').attr('stroke-opacity', 0.5)
+    .attr('stroke-width', d => d.strength || 1);
+  
+  const node = svg.append('g')
+    .selectAll('circle').data(nodes).join('circle')
+    .attr('r', d => Math.sqrt(d.value || 5) * 3)
+    .attr('fill', d => colorMap[d.group] || '#666')
+    .call(d3.drag()
+      .on('start', e => { graphSim.alphaTarget(0.3).restart(); e.fx = e.x; e.fy = e.y; })
+      .on('drag', e => { e.fx = e.x; e.fy = e.y; })
+      .on('end', e => { graphSim.alphaTarget(0); e.fx = null; e.fy = null; }));
+  
+  const label = svg.append('g')
+    .selectAll('text').data(nodes).join('text')
+    .text(d => d.label || d.id)
+    .attr('font-size', 8).attr('fill', '#888').attr('text-anchor', 'middle');
+  
+  node.append('title').text(d => `${d.id}\n${d.group}`);
+  
+  graphSim.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('cx', d => d.x).attr('cy', d => d.y);
+    label.attr('x', d => d.x).attr('y', d => d.y + 15);
+  });
+}
+
+// ================== UI ==================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab + 'Tab').classList.add('active');
+  });
+});
+
+document.getElementById('sessionSelect').addEventListener('change', e => selectSession(e.target.value));
+document.getElementById('newSessionBtn').addEventListener('click', createSession);
+document.getElementById('sendBtn').addEventListener('click', sendMessage);
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('clearLog').addEventListener('click', () => {
+  document.getElementById('eventsList').innerHTML = '';
+});
+
+document.getElementById('chatInput').disabled = false;
+
+// ================== INIT ==================
+connect();
+  </script>
 </body>
 </html>

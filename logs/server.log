@@ -59,3 +59,18 @@ ARI server listening on http://localhost:3000
 
 ARI server listening on http://localhost:3000
 ^C^C
+> ari-server@1.0.0 start
+> node server.js
+
+ARI server listening on http://localhost:3000
+
+> ari-server@1.0.0 start
+> node server.js
+
+ARI server listening on http://localhost:3000
+^C^C
+> ari-server@1.0.0 start
+> node server.js
+
+ARI server listening on http://localhost:3000
+^C^C
